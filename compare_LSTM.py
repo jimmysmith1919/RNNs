@@ -67,43 +67,53 @@ def tanh_approx(r,alpha, x):
     else:
         return -1+(x+alpha)/alpha
 
-def sample_g(h, rg, sigma, alpha):
-    mu_g = np.zeros(len(h))
-    for i in range(0,len(h)):
-        mu_g[i] = tanh_approx(rg[i],alpha, h[i])
-    return np.random.normal(mu_g, sigma)
-
-def sample_h(c, rh, sigma, alpha, zo):
-    mu_h = np.zeros(len(c))
-    for i in range(0,len(c)):
-        mu_h[i] = tanh_approx(rh[i], alpha, c[i])
-    return np.random.normal(zo*mu_h, sigma)
-
-
-
+def get_mu(y, r, alpha):
+    mu = np.zeros(len(y))
+    for i in range(0,len(y)):
+        mu[i] = tanh_approx(r[i],alpha, y[i])
+    return mu
+ 
 alpha1 = 1.5
 alpha2 = 1.5
 tau1 = 1
 tau2 =1
-sigma = 1
-x = np.concatenate((u,h))
-g_lin = Wg @ x + bg
-pi_g=break_stick(alpha1, tau1, g_lin)
-rg = sample_r(pi_g)
+sigma1 = 1
+sigma2 = 1
+sigma3 = 1
 
-g = sample_g(h, rg, sigma, alpha1)
-i,f,o,g,c,h = LSTM_step(u,h,c)
 
-zi = sample_z(i)
-zf = sample_z(f)
-zo = sample_z(o)
 
-c = np.random.normal(zf*c+zi*g, sigma)
+def stoch_LSTM_step(u, h, c):
+    x = np.concatenate((u,h))
 
-pi_h=break_stick(alpha2, tau2, c)
-rh = sample_r(pi_h)
-h = sample_h(c, rh, sigma, alpha2, zo)
-print(h)
+    #Sample z's for i, f and o gates
+    i = i_f_o_gates(Wi,bi,u,h)
+    f = i_f_o_gates(Wf,bf,u,h)
+    o = i_f_o_gates(Wo,bo,u,h)
+    zi = sample_z(i)
+    zf = sample_z(f)
+    zo = sample_z(o)
+
+    #Sample g gate
+    g_lin = Wg @ x + bg
+    pi_g=break_stick(alpha1, tau1, g_lin)
+    rg = sample_r(pi_g)
+    mu_g = get_mu(h, rg, alpha1)
+    g = np.random.normal(mu_g, sigma1)
+    
+    #sample c
+    c = np.random.normal(zf*c+zi*g, sigma2)
+
+    #Sample h
+    pi_h=break_stick(alpha2, tau2, c)
+    rh = sample_r(pi_h)
+    mu_h = get_mu(c, rh, alpha2)
+    h =  np.random.normal(zo*mu_h, sigma3)
+    return c,h
+
+for t in range(0,T):
+    c,h = stoch_LSTM_step(u,h,c)
+    print(h)
     
 
 
