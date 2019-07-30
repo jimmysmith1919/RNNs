@@ -1,21 +1,9 @@
 import numpy as np
 from scipy.special import expit
+import matplotlib.pyplot as plt
 
-D1=10 #h_t and c_t dimension
-D2 = 5 #u_t dimension
-
-Wi = np.random.randn(D1,D1+D2)
-Wf = np.random.randn(D1,D1+D2)
-Wo = np.random.randn(D1,D1+D2)
-Wg = np.random.randn(D1,D1+D2)
-
-bi =0* np.random.randn(D1)
-bf = 0*np.random.randn(D1)
-bo = 0*np.random.randn(D1)
-bg = 0*np.random.randn(D1)
-
-
-
+##Vanilla LSTM##
+##################################
 def i_f_o_gates(W, b, u, h):
     x = np.concatenate((u,h))
     return expit(W @ x +b)
@@ -23,7 +11,7 @@ def g_gate(W,b,u,h):
     x = np.concatenate((u,h))
     return np.tanh(W @ x + b)
 
-def LSTM_step(u,h,c):
+def LSTM_step(u,h,c,Wi,Wf,Wo,Wg,bi,bf,bo,bg):
     i = i_f_o_gates(Wi,bi,u,h)
     f = i_f_o_gates(Wf,bf,u,h)
     o = i_f_o_gates(Wo,bo,u,h)
@@ -32,17 +20,11 @@ def LSTM_step(u,h,c):
     c = f*c+i*g
     h = o*np.tanh(c)
     return i,f,o,g,c,h
+####################################
 
 
-c = np.ones(D1)
-h = np.ones(D1)
-u = np.zeros(D2)
-T = 10
-'''
-for t in range(0,T):
-    i,f,o,g,c,h =LSTM_step(u, h, c)
-'''
-
+##Stochastic LSTM##
+###################################
 def sample_z(gate):
     return  np.random.binomial(1, gate)
 
@@ -50,7 +32,7 @@ def break_stick(alpha, tau, x):
     pi = np.zeros((len(x), 3))
     pi[:,0] = expit((-alpha-x)/tau) #x<-alpha
     pi[:,1] = (1-pi[:,0])*expit((x-alpha)/tau) #x>alpha
-    pi[:,2] = expit((alpha+x)/tau)*expit((-x+alpha)/tau)
+    pi[:,2] = expit((alpha+x)/tau)*expit((-x+alpha)/tau) #-alpha<=x<=alpha
     return pi
 
 def sample_r(pi):
@@ -72,18 +54,9 @@ def get_mu(y, r, alpha):
     for i in range(0,len(y)):
         mu[i] = tanh_approx(r[i],alpha, y[i])
     return mu
- 
-alpha1 = 1.5
-alpha2 = 1.5
-tau1 = 1
-tau2 =1
-sigma1 = 1
-sigma2 = 1
-sigma3 = 1
 
-
-
-def stoch_LSTM_step(u, h, c):
+def stoch_LSTM_step(u,h,c,Wi,Wf,Wo,Wg,bi,bf,bo,bg,alpha1,alpha2,tau1,tau2,
+                    sigma1,sigma2,sigma3):
     x = np.concatenate((u,h))
 
     #Sample z's for i, f and o gates
@@ -100,7 +73,6 @@ def stoch_LSTM_step(u, h, c):
     rg = sample_r(pi_g)
     mu_g = get_mu(h, rg, alpha1)
     g = np.random.normal(mu_g, sigma1)
-    
     #sample c
     c = np.random.normal(zf*c+zi*g, sigma2)
 
@@ -109,13 +81,66 @@ def stoch_LSTM_step(u, h, c):
     rh = sample_r(pi_h)
     mu_h = get_mu(c, rh, alpha2)
     h =  np.random.normal(zo*mu_h, sigma3)
-    return c,h
+    return c, h, zi, zf, zo, g
+############################################3
+'''
+##Dimensions##
+D1=5 #h_t and c_t dimension
+D2 = 2 #u_t dimension
+
+##Random Weights##
+Wi = np.random.randn(D1,D1+D2)
+Wf = np.random.randn(D1,D1+D2)
+Wo = np.random.randn(D1,D1+D2)
+Wg = np.random.randn(D1,D1+D2)
+
+bi =np.random.randn(D1)
+bf =np.random.randn(D1)
+bo =np.random.randn(D1)
+bg =np.random.randn(D1)
+
+##Initialize##
+c = np.ones(D1) #Initial cell state
+h = np.ones(D1) #Initial hidden state
+u = 0*np.ones(D2) #initial inputs
+
+T = 10 #Timesteps
+
+##Generate Vanilla LSTM 
 
 for t in range(0,T):
-    c,h = stoch_LSTM_step(u,h,c)
-    print(h)
+    i,f,o,g,c,h =LSTM_step(u, h, c,Wi,Wf,Wo,Wg,bi,bf,bo,bg)
+
+
+#Stochastic LSTM hyperparameters
+alpha1 = 1.5
+alpha2 = 1.5
+tau1 = 1
+tau2 =1
+sigma1 = .1
+sigma2 = .1
+sigma3 = .1
+
+#Generate Stochastic LSTM
+c_vec = []
+h_vec = []
+i_vec = []
+f_vec = []
+o_vec = []
+g_vec = []
+for t in range(0,T):
+    c,h, zi, zf, zo, g = stoch_LSTM_step(u,h,c,Wi,Wf,Wo,Wg,bi,bf,bo,bg)
+    c_vec.append(c)
+    h_vec.append(h)
+    i_vec.append(zi)
+    f_vec.append(zf)
+    o_vec.append(zo)
+    g_vec.append(g)
     
 
-
-
+t_vec = np.arange(0,T,1)
+print(c_vec[0])
+plt.plot(t_vec, c_vec, 'c')
+plt.show()
+'''
 
