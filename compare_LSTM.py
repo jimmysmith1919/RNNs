@@ -4,19 +4,12 @@ import matplotlib.pyplot as plt
 
 ##Vanilla LSTM##
 ##################################
-def i_f_o_gates(W, b, u, h):
-    x = np.concatenate((u,h))
-    return expit(W @ x +b)
-
-def g_gate(W,b,u,h):
-    x = np.concatenate((u,h))
-    return np.tanh(W @ x + b)
-
 def LSTM_step(u,h,c,Wi,Wf,Wo,Wg,bi,bf,bo,bg):
-    i = i_f_o_gates(Wi,bi,u,h)
-    f = i_f_o_gates(Wf,bf,u,h)
-    o = i_f_o_gates(Wo,bo,u,h)
-    g = g_gate(Wg,bg,u,h)
+    x = np.concatenate((u,h))
+    i = expit(Wi @ x + bi) 
+    f = expit(Wf @ x + bf)
+    o = expit(Wo @ x + bo)
+    g = np.tanh(Wg @ x + bg)
 
     c = f*c+i*g
     h = o*np.tanh(c)
@@ -26,9 +19,6 @@ def LSTM_step(u,h,c,Wi,Wf,Wo,Wg,bi,bf,bo,bg):
 
 ##Stochastic LSTM##
 ###################################
-def sample_z(gate):
-    return  np.random.binomial(1, gate)
-
 def break_stick(alpha, tau, x):
     pi = np.zeros((len(x), 3))
     pi[:,0] = expit((-alpha-x)/tau) #x<-alpha
@@ -58,15 +48,16 @@ def get_mu(y, r, alpha):
 
 def stoch_LSTM_step(u,h,c,Wi,Wf,Wo,Wg,bi,bf,bo,bg,alpha1,alpha2,tau1,tau2,
                     sigma1,sigma2,sigma3):
+
     x = np.concatenate((u,h))
 
     #Sample z's for i, f and o gates
-    i = i_f_o_gates(Wi,bi,u,h)
-    f = i_f_o_gates(Wf,bf,u,h)
-    o = i_f_o_gates(Wo,bo,u,h)
-    zi = sample_z(i)
-    zf = sample_z(f)
-    zo = sample_z(o)
+    i = expit(Wi @ x + bi) 
+    f = expit(Wf @ x + bf)
+    o = expit(Wo @ x + bo)
+    zi = np.random.binomial(1,i) 
+    zf = np.random.binomial(1,f) 
+    zo = np.random.binomial(1,o)  
 
     #Sample g gate
     g_lin = Wg @ x + bg
@@ -74,6 +65,7 @@ def stoch_LSTM_step(u,h,c,Wi,Wf,Wo,Wg,bi,bf,bo,bg,alpha1,alpha2,tau1,tau2,
     rg = sample_r(pi_g)
     mu_g = get_mu(h, rg, alpha1)
     g = np.random.normal(mu_g, sigma1)
+    
     #sample c
     c = np.random.normal(zf*c+zi*g, sigma2)
 
