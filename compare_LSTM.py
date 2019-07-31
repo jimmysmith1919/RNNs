@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 def i_f_o_gates(W, b, u, h):
     x = np.concatenate((u,h))
     return expit(W @ x +b)
+
 def g_gate(W,b,u,h):
     x = np.concatenate((u,h))
     return np.tanh(W @ x + b)
@@ -83,64 +84,3 @@ def stoch_LSTM_step(u,h,c,Wi,Wf,Wo,Wg,bi,bf,bo,bg,alpha1,alpha2,tau1,tau2,
     h =  np.random.normal(zo*mu_h, sigma3)
     return c, h, zi, zf, zo, g
 ############################################3
-'''
-##Dimensions##
-D1=5 #h_t and c_t dimension
-D2 = 2 #u_t dimension
-
-##Random Weights##
-Wi = np.random.randn(D1,D1+D2)
-Wf = np.random.randn(D1,D1+D2)
-Wo = np.random.randn(D1,D1+D2)
-Wg = np.random.randn(D1,D1+D2)
-
-bi =np.random.randn(D1)
-bf =np.random.randn(D1)
-bo =np.random.randn(D1)
-bg =np.random.randn(D1)
-
-##Initialize##
-c = np.ones(D1) #Initial cell state
-h = np.ones(D1) #Initial hidden state
-u = 0*np.ones(D2) #initial inputs
-
-T = 10 #Timesteps
-
-##Generate Vanilla LSTM 
-
-for t in range(0,T):
-    i,f,o,g,c,h =LSTM_step(u, h, c,Wi,Wf,Wo,Wg,bi,bf,bo,bg)
-
-
-#Stochastic LSTM hyperparameters
-alpha1 = 1.5
-alpha2 = 1.5
-tau1 = 1
-tau2 =1
-sigma1 = .1
-sigma2 = .1
-sigma3 = .1
-
-#Generate Stochastic LSTM
-c_vec = []
-h_vec = []
-i_vec = []
-f_vec = []
-o_vec = []
-g_vec = []
-for t in range(0,T):
-    c,h, zi, zf, zo, g = stoch_LSTM_step(u,h,c,Wi,Wf,Wo,Wg,bi,bf,bo,bg)
-    c_vec.append(c)
-    h_vec.append(h)
-    i_vec.append(zi)
-    f_vec.append(zf)
-    o_vec.append(zo)
-    g_vec.append(g)
-    
-
-t_vec = np.arange(0,T,1)
-print(c_vec[0])
-plt.plot(t_vec, c_vec, 'c')
-plt.show()
-'''
-
