@@ -22,7 +22,11 @@ def get_elbo(z, mu, var, param_vec, Exx, E_omega):
     elbo = np.log( 1/np.sqrt((2*np.pi*var)) )-1/(2*var)*Exx
     elbo += mu/var*Ex-(mu**2)/(2*var)
     elbo += np.log(1/2) + (z-1/2)*Ex -1/2*E_omega*Exx
+    elbo += np.log(.5*np.pi**2)-.5*np.pi**2*E_omega
+    print(np.log(.5*np.pi**2)-.5*np.pi**2*E_omega)
     elbo += 1/2*(1+np.log(2*np.pi*s2))
+    elbo += 1-np.log(.5*np.pi**2+Exx/(4*np.pi**2))
+    print(1-np.log(.5*np.pi**2+Exx/(4*np.pi**2)))
     return elbo
 
 

@@ -67,7 +67,7 @@ np.random.seed(0)
 
 
 covar = np.diag([.1, .2, .3])
-mu_0 = 6
+mu_0 = 1
 c0 = np.random.normal(mu_0, np.sqrt(covar[0,0]))
 c1 = np.random.normal(c0, np.sqrt(covar[1,1]))
 v_gen = np.random.binomial(1,  expit(c1))
@@ -110,16 +110,16 @@ t = 1
 while diff > tol:
     param_vec = np.zeros(3) #[qv_p, qgam_b, qgam_c] 
     
-    #update qx
+    #update qc
     Lambda, Lambda_m = update_qc(T, t, mu_0, covar, Ev, E_gamma)
     m, Ecc = get_c_expects(Lambda, Lambda_m) 
 
-    #update qz
+    #update qv
     Ev = update_qv(m[t])
     param_vec[0] = Ev
     p_vec.append(Ev)
         
-    #update q_omega
+    #update q_gamma
     b, c, E_gamma = update_q_gamma(Ecc[t,t])
     param_vec[1] = b
     param_vec[2] = c
