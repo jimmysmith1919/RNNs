@@ -17,51 +17,29 @@ def generate(T, mu_0, covar):
 
 ##update c ##
 
-def update_diag(t, covar, E_gamma):
-    return  1/covar[t,t]+1/covar[t+1,t+1]+E_gamma[t]
-
-def update_crossterms(t, covar):
-    return -1/covar[t,t]
-
-def update_Lambda_M(t, Ev):
-    return Ev[t]-1/2
-    
-def update_L_m0(mu_0, covar, Ev):
-    #takes initial condition mu_0 into account
-    return (Ev[0]-1/2) + 1/covar[0,0]*mu_0
-
-def update_LambdaTT(t, covar, E_gamma):
-    #non next state covariance
-    return  1/covar[t,t]+E_gamma[t]
 
 def update_qc(T, mu_0, covar, Ev, E_gamma):
     Lambda = np.zeros((T,T))
     Lambda_m = np.zeros(T)
 
-    #c_0
-    Lambda[0,0] = update_diag(0, covar, E_gamma)
-    Lambda_m[0] = update_L_m0(mu_0, covar, Ev)
     
-    #c_1:c_T-1
-    for t in range(1,T-1):    
-        #Digaonal
-        Lambda[t,t] =  update_diag(t, covar, E_gamma)
+    diag1 = 1/np.diag(covar)
+    diag2 = np.zeros(len(diag1)) 
+    diag2[:-1] = diag1[1:]
+    Lambda = np.diag(diag1+diag2+E_gamma)
     
-        #Crossterms
-        Lambda[t-1,t] = update_crossterms(t, covar)
-        Lambda[t, t-1] = Lambda[t-1,t]
+    off_diag = -1/(np.diag(covar)[1:])
+    Lambda += np.diag(off_diag, k=1)
+    Lambda += np.diag(off_diag, k=-1)
+
+    Lambda_m = np.zeros(len(Ev))
+    Lambda_m[0] = 1/covar[0,0]*mu_0
+    Lambda_m += Ev-1/2*np.ones(len(Lambda_m))
     
-        #lambda_m terms
-        Lambda_m[t] = update_Lambda_M(t, Ev)
-    
-    #c_T
-    t = T-1
-    Lambda[t,t] = update_LambdaTT(t, covar, E_gamma)
-    Lambda[t-1,t] = update_crossterms(t, covar)
-    Lambda[t, t-1] = Lambda[t-1,t]
-    Lambda_m[t] = update_Lambda_M(t, Ev)
 
     return  Lambda, Lambda_m
+
+
 
 def get_c_expects(Lambda, Lambda_m):
     #will need to update with message passing
@@ -84,20 +62,30 @@ def update_qv(Ec):
 
 
 ##ELBO calculation###
+
+
+
+
 def elbo_c(mu_0, m, covar, Ecc):
-    value = np.sum( np.log( 1/np.sqrt(2*np.pi*np.diag(covar)) ) )
-    value += np.sum( -1/2*( 1/np.diag(covar) )*np.diag(Ecc) )
+    diag = np.diag(covar)
+    Ecc_diag = np.diag(Ecc)
+
+    value = np.log( 1/np.sqrt(2*np.pi*diag) )
+    value += -1/2*( 1/diag )*Ecc_diag 
+
+    term = 1/diag
+    term[0] *= m[0]*mu_0
+    term[1:] *= np.diag(Ecc,-1)
+    value += term
     
-    short_diag = 1/np.diag(covar)
-    short_diag = short_diag[1:]
-    value += np.sum(short_diag*np.diag(Ecc, -1))
-    value += 1/covar[0,0]*mu_0*m[0]
+    term = -1/2*1/diag
+    term[0] *= mu_0**2
+    term[1:] *= np.diag(Ecc)[:-1]
     
-    Ecc_minus = np.diag( Ecc )[:-1]
-    value += np.sum( -1/2*short_diag*Ecc_minus )
-    value += -1/2*1/covar[0,0]*mu_0**2
-    print('elbo_c:', value)
-    return value
+    value += term
+    
+    print('elbo_c:', np.sum(value))
+    return np.sum(value)
 
 def elbo_v(Ev, m):
     ones = np.ones(len(Ev))
@@ -159,11 +147,11 @@ def get_elbo(T,  mu_0, covar, m, Ecc, Ev, E_gamma):
 
 np.random.seed(0)
 
-T=5
+T=3
 
 #var = np.random.uniform(.1, .5, size=T)
 covar = np.identity(T)*.3*np.ones(T)#var
-mu_0 = 0 
+mu_0 = .9 
 
         
 c,v = generate(T, mu_0, covar)
@@ -189,7 +177,7 @@ g_old = np.ones(T)*np.inf
 
 
 diff = np.inf
-tol = .00001
+tol = .001
 
 diff_vec = []
 elbo_vec = []
