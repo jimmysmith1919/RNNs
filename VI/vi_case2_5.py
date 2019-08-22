@@ -1,7 +1,8 @@
 import numpy as np
 from scipy.special import expit
+from scipy import integrate
 import matplotlib.pyplot as plt
-
+from E_PG import qdf_log_pdf, entropy_q
 
 def generate(mu_0, covar):
     c = np.random.normal(mu_0, np.sqrt(covar))
@@ -62,10 +63,17 @@ def elbo_v(Ev, m):
 def elbo_gamma1(E_gamma, Ecc):
     print('elbo_gamma1:', -1/2*E_gamma*Ecc )
     return -1/2*E_gamma*Ecc 
-
+'''
 def elbo_gamma2(E_gamma):
     value = np.log(.5*(np.pi**2))-.5*(np.pi**2)*E_gamma
-    #value = np.log(2*np.pi**2)*np.ones(len(E_gamma))-2*np.pi**2*E_gamma
+    #value = np.log(2*np.pi**2)-2*(np.pi**2)*E_gamma
+    print('elbo_gamma', value)
+    return value
+'''
+def elbo_gamma2(Ecc):
+    value = integrate.quad(qdf_log_pdf, 0, np.inf, 
+                           args=(1,0, np.sqrt(Ecc)),
+                           epsabs=1e-1, epsrel = 0)[0]
     print('elbo_gamma', value)
     return value
 
@@ -79,13 +87,22 @@ def entropy_v(Ev):
     value = -Ev*np.log(Ev)-(1-Ev)*np.log(1-Ev)
     print('entropy_v:', value)
     return value
-    
+'''    
 def entropy_gamma(Ecc):
     value = 1-np.log( (np.pi**2)/2+Ecc/2)
-    #value = ones-np.log( 2*np.pi**2*ones+diag/(4*np.pi**2))
+    #value = 1-np.log( 2*np.pi**2+2*Ecc)
     print('gam_entrpy:', value)
     print(' ')
     return value
+'''
+def entropy_gamma(Ecc):
+    value = integrate.quad(entropy_q, 0, np.inf, args=(1,np.sqrt(Ecc)), 
+                   epsabs=1e-1, epsrel=0)[0]
+    print('gam_entrpy:', value)
+    print(' ')
+    return value
+
+
 
 
 def get_elbo(T,  mu_0, covar, m, Ecc, Ev, E_gamma):
@@ -93,9 +110,11 @@ def get_elbo(T,  mu_0, covar, m, Ecc, Ev, E_gamma):
     elbo = elbo_c(mu_0, m, covar, Ecc)
     elbo += elbo_v(Ev, m)
     elbo += elbo_gamma1(E_gamma, Ecc)
-    elbo += elbo_gamma2(E_gamma)
+    #elbo += elbo_gamma2(E_gamma)
+    elbo += elbo_gamma2(Ecc)
     elbo += entropy_c(T, m, Ecc)
     elbo += entropy_v(Ev)
+    #elbo += entropy_gamma(Ecc)
     elbo += entropy_gamma(Ecc)
     return elbo
 
@@ -106,7 +125,7 @@ T=1
 
 
 covar = .1 
-mu_0 = 10
+mu_0 = .4
 
         
 c,v = generate(mu_0, covar)
@@ -132,7 +151,7 @@ g_old = np.inf
 
 
 diff = np.inf
-tol = .00001
+tol = .0001
 
 diff_vec = []
 elbo_vec = []
@@ -181,7 +200,7 @@ print('Ev:', Ev)
 print('g:', g)  
 
 print('elbo:', elbo)
-
+print('sqrt(Ecc)', np.sqrt(Ecc))
 
 plt.plot(np.arange(k), elbo_vec)
 plt.xlabel('Iteration')
