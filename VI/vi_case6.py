@@ -4,24 +4,32 @@ import matplotlib.pyplot as plt
 from E_PG import qdf_log_pdf, entropy_q
 from scipy import integrate
 
-def generate(T, mu_0, pi, pf, pp, covar):
+def generate(T, mu_0, covar_c, h_0, covar_h, Wi, Wf, Wp, alpha):
     c = np.zeros(T)
+    h = np.zeros(T)
+    h = np.random.normal(alpha, np.sqrt(np.diag(covar_h)), size = T)
     v = np.zeros(T)
+    zi = np.zeros(T)
+    zf = np.zeros(T)
+    zp = np.zeros(T)
     
-    zi = np.random.binomial(1, expit(pi), size=T)
-    zf = np.random.binomial(1, expit(pf), size=T)
-    zp = np.random.binomial(1, expit(pp), size=T)
 
+    zi[0] = np.random.binomial(1, expit(Wi*h_0))
+    zf[0] = np.random.binomial(1, expit(Wf*h_0))
+    zp[0] = np.random.binomial(1, expit(Wp*h_0))
 
     c[0] = np.random.normal(zf[0]*mu_0+zi[0]*(2*zp[0]-1),
-                            np.sqrt(covar[0,0]))
+                            np.sqrt(covar_c[0,0]))
     v[0] = v_gen = np.random.binomial(1,  expit(c[0]))
     for t in range(1,T):
+        zi[t] = np.random.binomial(1, expit(Wi*h[t-1]))
+        zf[t] = np.random.binomial(1, expit(Wf*h[t-1]))
+        zp[t] = np.random.binomial(1, expit(Wp*h[t-1]))
         c[t] = np.random.normal(zf[t]*c[t-1]+zi[t]*(2*zp[t]-1),
-                                np.sqrt(covar[t,t]))
+                                np.sqrt(covar_c[t,t]))
         v[t] = np.random.binomial(1,  expit(c[t]))
     
-    return c, v, zi, zf, zp
+    return c, h, v, zi, zf, zp
 
 ####update c ########################################################
 def update_qc(T, mu_0, covar, Ezi, Ezf, Ezp, Ev, E_gamma):
@@ -59,18 +67,59 @@ def get_c_expects(Lambda, Lambda_m):
 
 ###############################################################
 
+
+def update_qh(T, h_0, covar, Wi, Wf, Wp,  Eomega_i, Eomega_f, 
+              Eomega_p, Ezi, Ezf, Ezp, alpha):
+
+    Lambda = np.zeros(T)
+    Lambda_m = np.zeros(T)
+    
+    Lambda += 1/np.diag(covar)
+    Lambda[:-1] += Eomega_i[1:]*Wi**2
+    Lambda[:-1] += Eomega_f[1:]*Wf**2
+    Lambda[:-1] += Eomega_p[1:]*Wp**2
+    
+
+    Lambda_m += 1/np.diag(covar)*alpha
+    Lambda_m[:-1] += (Ezi[1:]-1/2)*Wi
+    Lambda_m[:-1] += (Ezf[1:]-1/2)*Wf
+    Lambda_m[:-1] += (Ezp[1:]-1/2)*Wp
+    
+    return Lambda, Lambda_m
+    
+def get_h_expects(Lambda, Lambda_m):
+    Sigma = 1/Lambda
+    m = Sigma*Lambda_m
+    Ehh = m**2 + Sigma
+    return m, Ehh
+    
+#############################################################
 def update_q_gamma(Ecc):
     g = np.sqrt(np.diag(Ecc))
     b = np.ones(len(g))
     E_gamma = b/(2*g)*np.tanh(g/2)
     return b, g, E_gamma
+
+
+def update_q_omega_star(Ehh, h_0, W_star):
+    g = np.zeros(len(Ehh))
+    g[0] = W_star*h_0
+    g[1:] = np.sqrt(W_star**2*Ehh[:-1])
+    b = np.ones(len(g))
+    E_omega = b/(2*g)*np.tanh(g/2)
+    return b, g, E_omega
 ##############################################################
 
 def update_qv(Ec): 
     return expit(Ec)
 ############################################################
 
-def update_zi(mu_0, covar, Ec, Ezp, Ezf, pi):
+def W_Eh_z_update(W_star, Eh, h_0, value):
+    value[0] += W_star*h_0
+    value[1:] += Eh[:-1]
+    return value
+
+def update_zi(mu_0, covar, Wi, h_0, Eh, Ec, Ezp, Ezf):
     diag = np.diag(covar)
     ones = np.ones(len(Ec))
     
@@ -81,10 +130,11 @@ def update_zi(mu_0, covar, Ec, Ezp, Ezf, pi):
     Ec_minus[1:] = Ec[:-1]
     value += -1/diag*Ezf*Ec_minus*(2*Ezp-1)-(1/2)*(1/diag)
     
-    value += np.log( pi/(ones-pi) )    ###will need to fix
+    value = W_Eh_z_update(Wi, Eh, h_0, value)
+    
     return expit(value)
 
-def update_zf(mu_0, covar, Ec, Ecc, Ezi, Ezp, pf):
+def update_zf(mu_0, covar, Wf, h_0, Eh,  Ec, Ecc, Ezi, Ezp):
     ones = np.ones(len(Ec))
     diag = np.diag(covar)
     
@@ -105,10 +155,12 @@ def update_zf(mu_0, covar, Ec, Ecc, Ezi, Ezp, pf):
     Ec_min1[1:] = Ec[:-1]
 
     value += -1/diag*Ec_min1*Ezi*(2*Ezp-ones)
-    value += np.log( pf/(ones-pf)  )
+    
+    value = W_Eh_z_update(Wf, Eh, h_0, value)
+    
     return expit(value)
 
-def update_zp(mu_0, covar, Ec, Ezi, Ezf, pp):
+def update_zp(mu_0, covar, Wp, h_0, Eh, Ec, Ezi, Ezf):
     diag = np.diag(covar)
     
     value = 2/diag*Ec*Ezi
@@ -118,7 +170,8 @@ def update_zp(mu_0, covar, Ec, Ezi, Ezf, pp):
     Ec_minus[1:] = Ec[:-1]
 
     value += -2/diag*Ezf*Ec_minus*Ezi
-    value += np.log( pp/(np.ones(len(pp))-pp)  )
+
+    value = W_Eh_z_update(Wp, Eh, h_0, value)
     return expit(value)
                     
 
@@ -234,114 +287,149 @@ def get_elbo(T,  mu_0, covar, m, Ecc, Ev,
     elbo += entropy_gamma(Ecc)
     return elbo
 
+
+#####
 np.random.seed(0)
+T=3
 
-T=6
 
-#var = np.random.uniform(.1, .5, size=T)
-covar = np.identity(T)*.3*np.ones(T)#var
-mu_0 = .3
-pi = np.random.uniform(size=T)##np.ones(T)*.9 #
-pf = np.random.uniform(size=T)##np.ones(T)*.9#
-pp = np.random.uniform(size=T)##np.ones(T)*.5#
+covar_c = np.identity(T)*.3*np.ones(T)
+mu_0 = .7
 
-        
-c,v, zi, zf, zp = generate(T, mu_0, pi, pf, pp, covar)
+covar_h = np.identity(T)*.3*np.ones(T)
+h_0 = .3
+alpha = np.ones(T)*h_0
+
+Wi = 1
+Wf = 1
+Wp = 1   
+     
+c,h,v,zi,zf,zp = generate(T, mu_0, covar_c, h_0, 
+                          covar_h, Wi, Wf, Wp, alpha)
 
 print('Mu_0=',mu_0)
-print('covar=')
-print(covar)
+print('covar_c=')
+print(covar_c)
 print('c:', c)
 print('Sigmoid(c):', expit(c))
 print('v:', v)
+print('h_0:', h_0)
+print('h:', h)
 print('zi',zi)
 print('zf', zf)
 print('zp', zp)
 print(' ')
 
 
-#Initialize q_omega
+#Initialize
 E_gamma = .3*np.ones(T)
 Ev = .8*np.ones(T)
 Ezi = .3*np.ones(T)
 Ezf = .3*np.ones(T)
 Ezp = .3*np.ones(T)
+Eomega_i = .3*np.ones(T)
+Eomega_f = .3*np.ones(T)
+Eomega_p = .3*np.ones(T)
 
-m_old = np.ones(T)*np.inf
+
+Ec_old = np.ones(T)*np.inf
 Ecc_old = np.ones((T,T))*np.inf
+Eh_old = np.ones(T)*np.inf
+Ehh_old = np.ones((T,T))*np.inf
 Ev_old = np.ones(T)*np.inf
 g_old = np.ones(T)*np.inf
 Ezi_old = np.ones(T)*np.inf
 Ezf_old = np.ones(T)*np.inf
 Ezp_old = np.ones(T)*np.inf
-
+gi_old = np.ones(T)*np.inf
+gf_old = np.ones(T)*np.inf
+gp_old = np.ones(T)*np.inf
 
 diff = np.inf
 tol = .001
+
 
 diff_vec = []
 elbo_vec = []
 
 k = 0
 
-while diff > tol:
-    
-    #update qc
-    Lambda, Lambda_m = update_qc(T, mu_0, covar, Ezi, Ezf, Ezp, Ev, E_gamma)
-    m, Ecc = get_c_expects(Lambda, Lambda_m) 
 
+def get_diff(param, param_old, diff_list):
+    param_diff = np.amax(np.absolute(param-param_old))
+    diff_list.append(param_diff)
+    param_old = param
+    return diff_list, param_old
+
+while diff > tol:
+    diff_list = []
+
+    #update qc
+    Lambda_c, Lambda_c_m = update_qc(T, mu_0, covar_c, 
+                                     Ezi, Ezf, Ezp, Ev, E_gamma)
+    Ec, Ecc = get_c_expects(Lambda_c, Lambda_c_m) 
+    diff_list, Ec_old = get_diff( Ec, Ec_old, diff_list)
+
+    diff_list, Ecc_old = get_diff( Ecc, Ecc_old, diff_list)
+    
     #update qv
-    Ev = update_qv(m)
+    Ev = update_qv(Ec)
+    diff_list, Ev_old = get_diff( Ev, Ev_old, diff_list)
         
-    #update q_omega
+    #update q_gamma
     b, g, E_gamma = update_q_gamma(Ecc)
+    diff_list, g_old = get_diff( g, g_old, diff_list)
+    
+    #update q_h:
+    Lambda_h, Lambda_h_m = update_qh(T, h_0, covar_h, Wi, Wf, Wp, 
+                                     Eomega_i, Eomega_f, Eomega_p, 
+                                     Ezi, Ezf, Ezp, alpha)
+    Eh, Ehh = get_h_expects(Lambda_h, Lambda_h_m)
+
+    diff_list, Eh_old = get_diff( Eh, Eh_old, diff_list)
+    diff_list, Ehh_old = get_diff( Ehh, Ehh_old, diff_list)
+
+    #update q_omegas
+    bi, gi, Eomega_i = update_q_omega_star(Ehh, h_0, Wi)
+    diff_list, gi_old = get_diff( gi, gi_old, diff_list)
+
+
+    bf, gf, Eomega_f = update_q_omega_star(Ehh, h_0, Wf)
+    diff_list, gf_old = get_diff( gf, gf_old, diff_list)
+
+    bp, gp, Eomega_p = update_q_omega_star(Ehh, h_0, Wp)
+    diff_list, gp_old = get_diff( gp, gp_old, diff_list)
     
     #update q_zi
-    Ezi = update_zi(mu_0, covar, m, Ezp, Ezf, pi)
+    Ezi = update_zi(mu_0, covar_c, Wi, h_0, Eh, Ec, Ezp, Ezf)
+    diff_list, Ezi_old = get_diff( Ezi, Ezi_old, diff_list)
 
     #update q_zf
-    Ezf = update_zf(mu_0, covar, m, Ecc, Ezi, Ezp, pf)
+    Ezf = update_zf(mu_0, covar_c, Wf, h_0, Eh,  Ec, Ecc, Ezi, Ezp)
+    diff_list, Ezf_old = get_diff( Ezf, Ezf_old, diff_list)
 
     #update q_zp
-    Ezp = update_zp(mu_0, covar, m, Ezi, Ezf, pp)
-
-    #convergence check
-    m_diff = np.amax(np.absolute(m-m_old))
-    m_old = m
+    Ezp = update_zp(mu_0, covar_c, Wp, h_0, Eh, Ec, Ezi, Ezf)
+    diff_list, Ezp_old = get_diff( Ezp, Ezp_old, diff_list)
     
-    Ecc_diff = np.amax(np.absolute(Ecc-Ecc_old))
-    Ecc_old = Ecc
+    #convergence check
+    
 
-    Ev_diff = np.amax(np.absolute(Ev-Ev_old))
-    Ev_old = Ev
-
-    g_diff = np.amax(np.absolute(g-g_old))
-    g_old = g
-
-    Ezi_diff = np.amax(np.absolute(Ezi-Ezi_old))
-    Ezi_old = Ezi
-
-    Ezf_diff = np.amax(np.absolute(Ezf-Ezf_old))
-    Ezf_old = Ezf
-
-    Ezp_diff = np.amax(np.absolute(Ezp-Ezp_old))
-    Ezp_old = Ezp
-
-    diff = np.amax( [m_diff, Ecc_diff, Ev_diff, g_diff, 
-                     Ezi_diff, Ezf_diff, Ezp_diff] )
+    diff = np.amax( diff_list )
     diff_vec.append(diff)
 
-    elbo = get_elbo(T,  mu_0, covar, m, Ecc, Ev, 
-             Ezi, Ezf, Ezp, E_gamma, pi, pf, pp)
-    elbo_vec.append(elbo)
+    #elbo = get_elbo(T,  mu_0, covar, Ec, Ecc, Ev, 
+    #         Ezi, Ezf, Ezp, E_gamma, pi, pf, pp)
+    #elbo_vec.append(elbo)
 
     k+=1
 
 
-print('m:', m)
-Sigma = Ecc-np.outer(m,m)
+print('Ec:', Ec)
+Sigma = Ecc-np.outer(Ec,Ec)
 print('Sigma:')
 print(Sigma)
+print('Eh:',Eh) 
 print('Ev:', Ev)
 print('g:', g)  
 print('Ezi', Ezi)
@@ -354,7 +442,7 @@ print('elbo:', elbo)
 plt.plot(np.arange(k), elbo_vec)
 plt.xlabel('Iteration')
 plt.ylabel('ELBO')
-plt.title('ELBO convergence')
+plt.title('ELBO convergence (excludes some PG terms)')
 plt.savefig('ELBO_0.png')
 plt.show()
 plt.close()

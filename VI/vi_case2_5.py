@@ -125,7 +125,7 @@ T=1
 
 
 covar = .1 
-mu_0 = .4
+mu_0 = 30
 
         
 c,v = generate(mu_0, covar)
@@ -205,7 +205,7 @@ print('sqrt(Ecc)', np.sqrt(Ecc))
 plt.plot(np.arange(k), elbo_vec)
 plt.xlabel('Iteration')
 plt.ylabel('ELBO')
-plt.title('ELBO convergence (excludes some PG terms)')
+plt.title('ELBO convergence')
 plt.savefig('ELBO_0.png')
 plt.show()
 plt.close()

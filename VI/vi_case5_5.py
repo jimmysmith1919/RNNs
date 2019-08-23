@@ -167,7 +167,7 @@ T=1
 
 #var = np.random.uniform(.1, .5, size=T)
 covar = .3#np.identity(T)*.3*np.ones(T)#var
-mu_0 =  .4 
+mu_0 =  30
 pi = .6 
 pf = .3
 pp = .4

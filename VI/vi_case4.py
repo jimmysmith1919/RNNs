@@ -149,11 +149,11 @@ def get_elbo(T,  mu_0, covar, m, Ecc, Ev, E_gamma):
 
 np.random.seed(0)
 
-T=3
+T=6
 
 #var = np.random.uniform(.1, .5, size=T)
 covar = np.identity(T)*.3*np.ones(T)#var
-mu_0 = .9 
+mu_0 = .4 
 
         
 c,v = generate(T, mu_0, covar)
@@ -233,7 +233,7 @@ print('elbo:', elbo)
 plt.plot(np.arange(k), elbo_vec)
 plt.xlabel('Iteration')
 plt.ylabel('ELBO')
-plt.title('ELBO convergence (excludes some PG terms)')
+plt.title('ELBO convergence')
 plt.savefig('ELBO_0.png')
 plt.show()
 plt.close()
