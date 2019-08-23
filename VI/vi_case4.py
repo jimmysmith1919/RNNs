@@ -94,8 +94,9 @@ def elbo_v(Ev, m):
     return np.sum(value)
 
 def elbo_gamma1(E_gamma, Ecc):
-    print('elbo_gamma1:', np.sum( -1/2*E_gamma*np.diag(Ecc) ))
-    return np.sum( -1/2*E_gamma*np.diag(Ecc) )
+    value = -1/2*E_gamma*np.diag(Ecc) 
+    print('elbo_gamma1:', np.sum( value) )
+    return np.sum( value )
 
 
 def elbo_gamma2(Ecc):
@@ -116,9 +117,11 @@ def entropy_c(T, m, Ecc):
           1/2*np.log( np.linalg.det(Sigma) ))
     return T/2*(1+np.log(2*np.pi))+1/2*np.log( np.linalg.det(Sigma) )
 
-def entropy_v(Ev):
-    value = -Ev*np.log(Ev)-(np.ones(len(Ev))-Ev)*np.log(np.ones(len(Ev))-Ev)
-    print('entropy_v:', np.sum(value))
+
+def entropy_Bern(p, str):
+    ones = np.ones(len(p))
+    value = -p*np.log(p)-(ones-p)*np.log(ones-p)
+    print('entropy_{}:'.format(str), np.sum(value))
     return np.sum(value)
 
 
@@ -138,10 +141,9 @@ def get_elbo(T,  mu_0, covar, m, Ecc, Ev, E_gamma):
     elbo = elbo_c(mu_0, m, covar, Ecc)
     elbo += elbo_v(Ev, m)
     elbo += elbo_gamma1(E_gamma, Ecc)
-    #elbo += elbo_gamma2(E_gamma)
     elbo += elbo_gamma2(Ecc)
     elbo += entropy_c(T, m, Ecc)
-    elbo += entropy_v(Ev)
+    elbo += entropy_Bern(Ev, 'v')
     elbo += entropy_gamma(Ecc)
     return elbo
 
