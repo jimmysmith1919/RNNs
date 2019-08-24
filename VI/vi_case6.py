@@ -209,17 +209,36 @@ def elbo_c(mu_0, m, covar, Ecc):
     print('elbo_c:', np.sum(value))
     return np.sum(value)
 
-def elbo_z_star(Ez, p, star):
-    ones= np.ones(len(p))
-    value = Ez*np.log(p)+(ones-Ez)*np.log(ones-p)
+def elbo_h(h_0, covar, Eh, Ehh, alpha):
+    ###not using last h for this case
+    Eh = Eh[:-1]
+    Ehh = Ehh[:-1]
+    alpha = alpha[:-1]
+    diag = np.diag(covar)[:-1]
+    ###
+
+    value = np.log( 1/np.sqrt(2*np.pi*diag) )
+    value += -1/2*( 1/diag )*Ehh
+    value += 1/diag*alpha*Eh
+    value += -1/2*1/diag*alpha**2
+    print('elbo_h:', np.sum(value))
+    return np.sum(value)
+
+    
+def elbo_z_star(Ez,Eh, h_0, W_star, star):
+    ones = np.ones(len(Eh))
+    
+    mod_Eh = np.zeros(len(Eh))
+    mod_Eh[0] = h_0
+    mod_Eh[1:] = Eh[:-1]
+    value = np.log(1/2)*ones + (Ez-1/2*ones)*W_star*mod_Eh
     print('elbo_{}'.format(star), np.sum(value))
     return np.sum(value)
-    
 
 
-def elbo_v(Ev, m):
+def elbo_v(Ev, Ec):
     ones = np.ones(len(Ev))
-    value = np.log(1/2)*ones + (Ev-1/2*ones)*m
+    value = np.log(1/2)*ones + (Ev-1/2*ones)*Ec
     print('elbo_v:', np.sum(value))
     return np.sum(value)
 
@@ -238,13 +257,45 @@ def elbo_gamma2(Ecc):
     print('elbo_gamma', value)
     return value
 
+def elbo_omega_star_1(Eomega_star, Ehh, h_0, W_star, star):
+    mod_Ehh = np.zeros(len(Ehh))
+    mod_Ehh[0] = h_0**2
+    mod_Ehh[1:] = Ehh[:-1]
+    value = -1/2*Eomega_star*(W_star**2)*mod_Ehh
+    print('elbo_omega1_{}:'.format(star), np.sum( value) )
+    return np.sum( value )
 
-def entropy_c(T, m, Ecc):
+def elbo_omega2_star(Ehh, h_0, W_star, star):
+    mod_Ehh = np.zeros(len(Ehh))
+    mod_Ehh[0] = h_0**2
+    mod_Ehh[1:] = Ehh[:-1]
+    value = 0
+    for t in range(0,len(mod_Ehh)):
+        value += integrate.quad(qdf_log_pdf, 0, np.inf,
+                           args=(1,0, np.sqrt(W_star**2*mod_Ehh[t])),
+                           epsabs=1e-3, epsrel = 0)[0]
+    print('elbo_omega2_{}'.format(star), value)
+    return value
+
+
+def entropy_c(T, Ec, Ecc):
     #need to make more efficient
-    Sigma = Ecc-np.outer(m,m)
+    Sigma = Ecc-np.outer(Ec,Ec)
     print('Entropy_c:', T/2*(1+np.log(2*np.pi))+
           1/2*np.log( np.linalg.det(Sigma) ))
     return T/2*(1+np.log(2*np.pi))+1/2*np.log( np.linalg.det(Sigma) )
+
+
+def entropy_h(T, Eh, Ehh):
+    ###not using last h for this case
+    Eh = Eh[:-1]
+    Ehh = Ehh[:-1]
+    ###
+
+    Sigma = Ehh-Eh**2
+    print('Entropy_h:', T/2*(1+np.log(2*np.pi))+
+          1/2*np.log( np.prod(Sigma) ))
+    return T/2*(1+np.log(2*np.pi))+1/2*np.log( np.prod(Sigma) )
 
 def entropy_Bern(p, str):
     ones = np.ones(len(p))
@@ -266,25 +317,70 @@ def entropy_gamma(Ecc):
                                 args=(1,np.sqrt(Ecc_diag[t])),
                                 epsabs=1e-3, epsrel=0)[0]
     print('gam_entrpy:', value)
-    print(' ')
     return value
 
-def get_elbo(T,  mu_0, covar, m, Ecc, Ev, 
-             Ezi, Ezf, Ezp, E_gamma, pi, pf, pp):
+def entropy_omega_star(Ehh, h_0, W_star, star):
+    mod_Ehh = np.zeros(len(Ehh))
+    mod_Ehh[0] = h_0**2
+    mod_Ehh[1:] = Ehh[:-1]
+    value = 0
+    for t in range(0,len(Ehh)):
+        value += integrate.quad(entropy_q, 0, np.inf, 
+                                args=(1,np.sqrt(W_star**2*mod_Ehh[t])),
+                                epsabs=1e-3, epsrel=0)[0]
+    print('omega_{}_entrpy:'.format(star), value)
+    return value
+
+def get_elbo(T,  mu_0, covar_c, h_0, covar_h, Wi, Wf, Wp, Ec, Ecc, Ev, 
+             Eh, Ehh, Ezi, Ezf, Ezp, E_gamma, 
+             Eomega_i, Eomega_f, Eomega_p, alpha):
     #NOTE: currently excludes several PG terms
-    elbo = elbo_c(mu_0, m, covar, Ecc)
-    elbo += elbo_v(Ev, m)
-    elbo += elbo_z_star(Ezi, pi, 'zi')
-    elbo += elbo_z_star(Ezf, pf, 'zf')
-    elbo += elbo_z_star(Ezp, pp, 'zp')
+    elbo = elbo_c(mu_0, Ec, covar_c, Ecc)
+    elbo += elbo_v(Ev, Ec)
+    elbo += elbo_h(h_0, covar_h, Eh, Ehh, alpha)
+    
+    elbo += elbo_z_star(Ezi,Eh, h_0, Wi, 'zi')
+    elbo += elbo_z_star(Ezf,Eh, h_0, Wf, 'zf')
+    elbo += elbo_z_star(Ezp,Eh, h_0, Wp, 'zp')
+    
     elbo += elbo_gamma1(E_gamma, Ecc)
     elbo += elbo_gamma2(Ecc)
-    elbo += entropy_c(T, m, Ecc)
+
+    elbo += elbo_omega_star_1(Eomega_i, Ehh, h_0, Wi, 'i')
+    elbo += elbo_omega_star_1(Eomega_f, Ehh, h_0, Wf, 'f')
+    elbo += elbo_omega_star_1(Eomega_p, Ehh, h_0, Wp, 'p')
+
+    ###
+    #multiply times 3 since Wi=Wf=Wp input to save time
+    elbo_omega2 = elbo_omega2_star(Ehh, h_0, Wi, 'i')
+    elbo += elbo_omega2*3
+    '''
+    elbo += elbo_omega2_star(Ehh, h_0, Wi, 'i')
+    elbo += elbo_omega2_star(Ehh, h_0, Wf, 'f')
+    elbo += elbo_omega2_star(Ehh, h_0, Wp, 'p')
+    '''
+    ###
+
+    elbo += entropy_c(T, Ec, Ecc)
     elbo += entropy_Bern(Ev, 'v')
+    elbo += entropy_h(T, Eh, Ehh)
+
     elbo += entropy_Bern(Ezi, 'zi')
     elbo += entropy_Bern(Ezf, 'zf')
     elbo += entropy_Bern(Ezp, 'zp')
+
     elbo += entropy_gamma(Ecc)
+
+    ### multiply times 3 since ame input to save time
+    ent_omega = entropy_omega_star(Ehh, h_0, Wi, 'i')
+    elbo += ent_omega*3
+    '''
+    elbo += entropy_omega_star(Ehh, h_0, Wi, 'i')
+    elbo += entropy_omega_star(Ehh, h_0, Wf, 'f')
+    elbo += entropy_omega_star(Ehh, h_0, Wp, 'p')
+    '''
+    ###
+
     return elbo
 
 
@@ -296,7 +392,7 @@ T=3
 covar_c = np.identity(T)*.3*np.ones(T)
 mu_0 = .7
 
-covar_h = np.identity(T)*.3*np.ones(T)
+covar_h = np.identity(T)*.4*np.ones(T)
 h_0 = .3
 alpha = np.ones(T)*h_0
 
@@ -346,7 +442,7 @@ gf_old = np.ones(T)*np.inf
 gp_old = np.ones(T)*np.inf
 
 diff = np.inf
-tol = .001
+tol = .01
 
 
 diff_vec = []
@@ -418,9 +514,11 @@ while diff > tol:
     diff = np.amax( diff_list )
     diff_vec.append(diff)
 
-    #elbo = get_elbo(T,  mu_0, covar, Ec, Ecc, Ev, 
-    #         Ezi, Ezf, Ezp, E_gamma, pi, pf, pp)
-    #elbo_vec.append(elbo)
+    elbo = get_elbo(T,  mu_0, covar_c, h_0, covar_h, Wi, Wf, Wp, Ec, Ecc, Ev, 
+             Eh, Ehh, Ezi, Ezf, Ezp, E_gamma, 
+             Eomega_i, Eomega_f, Eomega_p, alpha)
+    elbo_vec.append(elbo)
+    print(' ')
 
     k+=1
 
@@ -442,7 +540,7 @@ print('elbo:', elbo)
 plt.plot(np.arange(k), elbo_vec)
 plt.xlabel('Iteration')
 plt.ylabel('ELBO')
-plt.title('ELBO convergence (excludes some PG terms)')
+plt.title('ELBO convergence')
 plt.savefig('ELBO_0.png')
 plt.show()
 plt.close()
