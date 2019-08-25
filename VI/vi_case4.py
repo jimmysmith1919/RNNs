@@ -120,7 +120,13 @@ def entropy_c(T, m, Ecc):
 
 def entropy_Bern(p, str):
     ones = np.ones(len(p))
+
+    check1 = np.argwhere(np.isclose(p, np.zeros(len(p))))
+    check2 = np.argwhere(np.isclose(p, ones))
     value = -p*np.log(p)-(ones-p)*np.log(ones-p)
+    value[check1] = 0
+    value[check2] = 0
+    #value = -p*np.log(p)-(ones-p)*np.log(ones-p)
     print('entropy_{}:'.format(str), np.sum(value))
     return np.sum(value)
 
@@ -153,7 +159,7 @@ T=6
 
 #var = np.random.uniform(.1, .5, size=T)
 covar = np.identity(T)*.3*np.ones(T)#var
-mu_0 = .4 
+mu_0 = 100 
 
         
 c,v = generate(T, mu_0, covar)

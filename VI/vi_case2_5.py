@@ -73,7 +73,7 @@ def elbo_gamma2(E_gamma):
 def elbo_gamma2(Ecc):
     value = integrate.quad(qdf_log_pdf, 0, np.inf, 
                            args=(1,0, np.sqrt(Ecc)),
-                           epsabs=1e-1, epsrel = 0)[0]
+                           epsabs=1e-5, epsrel = 0)[0]
     print('elbo_gamma', value)
     return value
 
@@ -84,7 +84,13 @@ def entropy_c(T, m, Ecc):
     return 1/2*(1+np.log(2*np.pi))+1/2*np.log( Sigma )
 
 def entropy_v(Ev):
+    check1 = np.isclose(Ev, 0)
+    check2 = np.isclose(Ev, 1)
     value = -Ev*np.log(Ev)-(1-Ev)*np.log(1-Ev)
+    if check1 == 1:
+        value = 0
+    elif check2 ==1:
+        value = 0
     print('entropy_v:', value)
     return value
 '''    
@@ -97,7 +103,7 @@ def entropy_gamma(Ecc):
 '''
 def entropy_gamma(Ecc):
     value = integrate.quad(entropy_q, 0, np.inf, args=(1,np.sqrt(Ecc)), 
-                   epsabs=1e-1, epsrel=0)[0]
+                   epsabs=1e-5, epsrel=0)[0]
     print('gam_entrpy:', value)
     print(' ')
     return value
@@ -125,7 +131,7 @@ T=1
 
 
 covar = .1 
-mu_0 = 30
+mu_0 = 60
 
         
 c,v = generate(mu_0, covar)
@@ -151,7 +157,7 @@ g_old = np.inf
 
 
 diff = np.inf
-tol = .0001
+tol = .001
 
 diff_vec = []
 elbo_vec = []
@@ -193,10 +199,12 @@ while diff > tol:
 
 
 print('m:', m)
+print('Ecc:',Ecc)
 Sigma = Ecc-np.outer(m,m)
 print('Sigma:')
 print(Sigma)
 print('Ev:', Ev)
+print('E_gamma:', E_gamma)
 print('g:', g)  
 
 print('elbo:', elbo)

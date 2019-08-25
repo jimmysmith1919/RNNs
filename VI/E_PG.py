@@ -68,6 +68,36 @@ def entropy_q(omega, b, psi):
         return -pdf*np.log(pdf)
 
 
+'''
+print(integrate.quad(qdf_log_pdf, 0, np.inf, 
+                     args=(1,0, 100.0005), 
+                 epsabs=1e-4,   epsrel = 0))
+'''
+'''
+print(integrate.quad(pgpdf, 0, np.inf, 
+                     args=(1, 79), 
+                 epsabs=1e-4,   epsrel = 0))
+'''
+'''
+psi = 40
+
+Eom = 1/(2*psi)*np.tanh(psi/2)
+Eom_1 = -1/2*Eom*psi**2
+
+Eom_2 = integrate.quad(qdf_log_pdf, 0, np.inf, 
+                     args=(1,0, psi), 
+                 epsabs=1e-4,   epsrel = 0)[0]
+print('Eom_1:',Eom_1)
+print('Eom_2:', Eom_2)
+print('Eom1+Eom2:',Eom_1+Eom_2)
+
+
+b= integrate.quad(entropy_q, 0, np.inf, 
+                     args=(1, psi), 
+                 epsabs=1e-4,   epsrel = 0)[0]
+print('ent_q:',b)
+'''
+
 
 '''
 import time

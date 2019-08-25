@@ -236,11 +236,11 @@ def get_elbo(T,  mu_0, covar, m, Ecc, Ev,
 
 np.random.seed(0)
 
-T=6
+T=3
 
 #var = np.random.uniform(.1, .5, size=T)
 covar = np.identity(T)*.3*np.ones(T)#var
-mu_0 = .3
+mu_0 = 100
 pi = np.random.uniform(size=T)##np.ones(T)*.9 #
 pf = np.random.uniform(size=T)##np.ones(T)*.9#
 pp = np.random.uniform(size=T)##np.ones(T)*.5#
@@ -277,7 +277,7 @@ Ezp_old = np.ones(T)*np.inf
 
 
 diff = np.inf
-tol = .001
+tol = .01
 
 diff_vec = []
 elbo_vec = []
