@@ -391,14 +391,14 @@ def get_diff(param, param_old, diff_list):
 
 #####
 np.random.seed(0)
-T=3
+T=10
 
 
 covar_c = np.identity(T)*.3*np.ones(T)
-mu_0 = .3
+mu_0 = .7
 
 covar_h = np.identity(T)*.4*np.ones(T)
-h_0 = 70
+h_0 = -.3
 alpha = np.ones(T)*h_0
 
 Wi = 1
@@ -514,13 +514,13 @@ while diff > tol:
 
     diff = np.amax( diff_list )
     diff_vec.append(diff)
-
+    '''
     elbo = get_elbo(T,  mu_0, covar_c, h_0, covar_h, Wi, Wf, Wp, Ec, Ecc, Ev, 
              Eh, Ehh, Ezi, Ezf, Ezp, E_gamma, 
              Eomega_i, Eomega_f, Eomega_p, alpha)
     elbo_vec.append(elbo)
     print(' ')
-
+    '''
     k+=1
 
 
