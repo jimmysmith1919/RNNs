@@ -395,10 +395,10 @@ T=10
 
 
 covar_c = np.identity(T)*.3*np.ones(T)
-mu_0 = .7
+mu_0 = .1
 
 covar_h = np.identity(T)*.4*np.ones(T)
-h_0 = -.3
+h_0 = .1
 alpha = np.ones(T)*h_0
 
 Wi = 1
@@ -525,10 +525,19 @@ while diff > tol:
 
 
 print('Ec:', Ec)
+print('Ec prior:')
+Ec_mod = np.zeros(T)
+Ec_mod[0] = mu_0
+Ec_mod[1:] = Ec[:-1]
+print(Ezf*Ec_mod+Ezi*(2*Ezp-1))
+print(' ')
 Sigma = Ecc-np.outer(Ec,Ec)
 print('Sigma:')
 print(Sigma)
 print('Eh:',Eh) 
+print('Eh prior:')
+print(alpha)
+print(' ')
 print('Ehh', Ehh)
 Sigma_h = Ehh-Eh**2
 print('Sigma_h:', Sigma_h)
@@ -536,8 +545,20 @@ print('Ev:', Ev)
 print('E_gamma:', E_gamma)
 print('g:', g)  
 print('Ezi', Ezi)
+Eh_mod = np.zeros(T)
+Eh_mod[0] = h_0
+Eh_mod[1:] = Eh[:-1]
+print('Ezi prior:')
+print(expit(Wi*Eh_mod))
+print(' ')
 print('Ezf', Ezf)
+print('Ezf prior:')
+print(expit(Wf*Eh_mod))
+print(' ')
 print('Ezp', Ezp)
+print('Ezp prior:')
+print(expit(Wp*Eh_mod))
+print(' ')
 print('E_omega_i:', Eomega_i)
 print('E_omega_f:', Eomega_f)
 print('E_omega_p:', Eomega_p)
