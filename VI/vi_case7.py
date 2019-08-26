@@ -281,7 +281,7 @@ def elbo_gamma2(Ecc):
     for t in range(0,len(Ecc_diag)):
         value += integrate.quad(qdf_log_pdf, 0, np.inf,
                            args=(1,0, np.sqrt(4*Ecc_diag[t])),
-                           epsabs=1e-4, epsrel = 0)[0]
+                           epsabs=1e-1, epsrel = 0)[0]
     print('elbo_gamma', value)
     return value
 
@@ -295,7 +295,7 @@ def elbo_omega2_star(g_star, star):
     for t in range(0,len(g_star)):
         value += integrate.quad(qdf_log_pdf, 0, np.inf,
                            args=(1,0, g_star[t]),
-                           epsabs=1e-4, epsrel = 0)[0]
+                           epsabs=1e-1, epsrel = 0)[0]
     print('elbo_omega2_{}'.format(star), value)
     return value
 
@@ -337,7 +337,7 @@ def entropy_gamma(Ecc):
     for t in range(0,len(Ecc_diag)):
         value += integrate.quad(entropy_q, 0, np.inf, 
                                 args=(1,np.sqrt(4*Ecc_diag[t])),
-                                epsabs=1e-4, epsrel=0)[0]
+                                epsabs=1e-1, epsrel=0)[0]
     print('gam_entrpy:', value)
     return value
 
@@ -346,7 +346,7 @@ def entropy_omega_star(g_star, star):
     for t in range(0,len(g_star)):
         value += integrate.quad(entropy_q, 0, np.inf, 
                                 args=(1, g_star[t]),
-                                epsabs=1e-4, epsrel=0)[0]
+                                epsabs=1e-1, epsrel=0)[0]
     print('omega_{}_entrpy:'.format(star), value)
     return value
 
@@ -374,17 +374,18 @@ def get_elbo(T,  mu_0, covar_c, h_0, covar_h, Wi, Wf, Wp, Wo,
     elbo += elbo_omega_star_1(Eomega_p, gp, 'p')
     elbo += elbo_omega_star_1(Eomega_o, go, 'o')
 
-    '''
+    
     ###
     #multiply times 4 since Wi=Wf=Wp input to save time
     elbo_omega2 = elbo_omega2_star(gi, 'i')
     elbo += elbo_omega2*4
+    
     '''
     elbo += elbo_omega2_star(gi, 'i')
     elbo += elbo_omega2_star(gf, 'f')
     elbo += elbo_omega2_star(gp, 'p')
     elbo += elbo_omega2_star(go, 'o')
-    
+    '''
     ###
 
     elbo += entropy_c(T, Ec, Ecc)
@@ -398,15 +399,17 @@ def get_elbo(T,  mu_0, covar_c, h_0, covar_h, Wi, Wf, Wp, Wo,
 
     elbo += entropy_gamma(Ecc)
 
-    '''
+    
     ### multiply times 4 since same input to save time
     ent_omega = entropy_omega_star(gi, 'i')
     elbo += ent_omega*4
+    
     '''
     elbo += entropy_omega_star(gi, 'i')
     elbo += entropy_omega_star(gf, 'f')
     elbo += entropy_omega_star(gp, 'p')
     elbo += entropy_omega_star(go, 'o')
+    '''
     ###
 
     return elbo
@@ -419,7 +422,7 @@ def get_diff(param, param_old, diff_list):
 
 #####
 np.random.seed(0)
-T=4
+T=5
 
 
 covar_c = np.identity(T)*.2#np.array([.1,.2,.3,.4])
@@ -428,7 +431,7 @@ mu_0 = 0
 covar_h = np.identity(T)*.3#np.array([.4,.3,.2,.1])
 h_0 = 0
 
-u = np.ones(T)#np.array([.1, .2, .3, .4])
+u = -.3*np.ones(T)#np.array([.1, .2, .3, .4])
 
 Wi = .1
 Wf = .1
@@ -440,10 +443,10 @@ Uf = .1
 Up = .1
 Uo = .1
 
-bi = 0
-bf = 0
-bp = 0 
-bo = 0
+bi = .1
+bf = .1
+bp = .1
+bo = .1
      
 c,h,v,zi,zf,zp,zo = generate(T, mu_0, covar_c, h_0, 
                           covar_h, Wi, Wf, Wp, Wo, 
@@ -577,7 +580,7 @@ while diff > tol:
     diff = np.amax( diff_list )
     diff_vec.append(diff)
 
-    '''
+    
     elbo = get_elbo(T,  mu_0, covar_c, h_0, covar_h, Wi, Wf, Wp, Wo, 
              Ui, Uf, Up, Uo, u, 
              Ec, Ecc, Ev, Eh, Ehh, Ezi, Ezf, Ezp, Ezo, E_gamma, 
@@ -586,10 +589,10 @@ while diff > tol:
 
     elbo_vec.append(elbo)
     print(' ')
-    '''
+    
     k+=1
 
-
+'''
 elbo = get_elbo(T,  mu_0, covar_c, h_0, covar_h, Wi, Wf, Wp, Wo, 
              Ui, Uf, Up, Uo, u, 
              Ec, Ecc, Ev, Eh, Ehh, Ezi, Ezf, Ezp, Ezo, E_gamma, 
@@ -598,7 +601,7 @@ elbo = get_elbo(T,  mu_0, covar_c, h_0, covar_h, Wi, Wf, Wp, Wo,
 
 elbo_vec.append(elbo)
 print(' ')
-
+'''
 
 
 print('Ec:', Ec)
