@@ -131,7 +131,7 @@ T=1
 
 
 covar = .1 
-mu_0 = 60
+mu_0 = 70
 
         
 c,v = generate(mu_0, covar)

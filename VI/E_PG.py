@@ -79,7 +79,7 @@ print(integrate.quad(pgpdf, 0, np.inf,
                  epsabs=1e-4,   epsrel = 0))
 '''
 '''
-psi = 40
+psi = 1
 
 Eom = 1/(2*psi)*np.tanh(psi/2)
 Eom_1 = -1/2*Eom*psi**2

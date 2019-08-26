@@ -236,14 +236,14 @@ def get_elbo(T,  mu_0, covar, m, Ecc, Ev,
 
 np.random.seed(0)
 
-T=3
+T=5
 
 #var = np.random.uniform(.1, .5, size=T)
 covar = np.identity(T)*.3*np.ones(T)#var
-mu_0 = 100
-pi = np.random.uniform(size=T)##np.ones(T)*.9 #
-pf = np.random.uniform(size=T)##np.ones(T)*.9#
-pp = np.random.uniform(size=T)##np.ones(T)*.5#
+mu_0 = -.6
+pi = np.ones(T)*.5 ##np.random.uniform(size=T)
+pf = np.ones(T)*.5##np.random.uniform(size=T)
+pp = np.ones(T)*.5##np.random.uniform(size=T)
 
         
 c,v, zi, zf, zp = generate(T, mu_0, pi, pf, pp, covar)
@@ -339,6 +339,12 @@ while diff > tol:
 
 
 print('m:', m)
+print('m prior:')
+Ec_mod = np.zeros(T)
+Ec_mod[0] = mu_0
+Ec_mod[1:] = m[:-1]
+print(Ezf*Ec_mod+Ezi*(2*Ezp-1))
+print(' ')
 Sigma = Ecc-np.outer(m,m)
 print('Sigma:')
 print(Sigma)

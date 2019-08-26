@@ -40,7 +40,7 @@ def update_qc(T, mu_0, covar, Ezi, Ezf, Ezp, Ev, E_gamma):
     Lambda = np.zeros((T,T))
     Lambda_m = np.zeros(T)
 
-    ones = np.ones(T)
+    #ones = np.ones(T)
     
     #Construct Precision Diagonal
     diag1 = 1/np.diag(covar)
@@ -56,9 +56,9 @@ def update_qc(T, mu_0, covar, Ezi, Ezf, Ezp, Ev, E_gamma):
     #Construct Precision times mean
     Lambda_m = np.zeros(T)
     Lambda_m[0] = 1/covar[0,0]*mu_0*Ezf[0]
-    Lambda_m += diag1*Ezi*(2*Ezp-ones)
-    Lambda_m += 2*(Ev-1/2)*ones
-    Lambda_m[:-1] += -diag1[1:]*Ezi[1:]*Ezf[1:]*(2*Ezp[1:]-ones[1:])
+    Lambda_m += diag1*Ezi*(2*Ezp-1)
+    Lambda_m += 2*(Ev-1/2)
+    Lambda_m[:-1] += -diag1[1:]*Ezi[1:]*Ezf[1:]*(2*Ezp[1:]-1)
     
     return  Lambda, Lambda_m
 
@@ -157,7 +157,7 @@ def update_zi(mu_0, covar, Wi, Ui, bi, u, h_0, Eh, Ec, Ezp, Ezf):
 
 def update_zf(mu_0, covar, Wf, Uf, bf, u, 
               h_0, Eh,  Ec, Ecc, Ezi, Ezp):
-    ones = np.ones(len(Ec))
+
     diag = np.diag(covar)
     
     Ecc_minus_1 = np.zeros(len(Ec))
@@ -176,7 +176,7 @@ def update_zf(mu_0, covar, Wf, Uf, bf, u,
     Ec_min1[0] = mu_0
     Ec_min1[1:] = Ec[:-1]
 
-    value += -1/diag*Ec_min1*Ezi*(2*Ezp-ones)
+    value += -1/diag*Ec_min1*Ezi*(2*Ezp-1)
     
     value = W_Eh_z_update(Wf, Uf, bf, u, Eh, h_0, value)
     
@@ -211,7 +211,6 @@ def update_zo(h_0, covar, Wo, Uo, bo, u, Eh, Ev):
 
 
 def elbo_c(mu_0, m, covar, Ecc):
-    ones = np.ones(len(m))
     diag = np.diag(covar)
     Ecc_diag = np.diag(Ecc)
 
@@ -223,14 +222,14 @@ def elbo_c(mu_0, m, covar, Ecc):
     term[1:] *= np.diag(Ecc,-1)*Ezf[1:]
     value += term
 
-    value += 1/diag*Ezi*(2*Ezp-ones)*m
+    value += 1/diag*Ezi*(2*Ezp-1)*m
     
     term = -1/2*1/diag
     term[0] *= mu_0**2*Ezf[0]
     term[1:] *= np.diag(Ecc)[:-1]*Ezf[1:]
     value += term
 
-    term = -1/diag*Ezi*Ezf*(2*Ezp-ones)
+    term = -1/diag*Ezi*Ezf*(2*Ezp-1)
     term[0] *= mu_0
     term[1:] *= m[:-1]
     value += term
@@ -266,7 +265,7 @@ def elbo_z_star(Ez,Eh, h_0, W_star, U_star, b_star, u, star):
 
 def elbo_v(Ev, Ec):
     ones = np.ones(len(Ev))
-    value = np.log(1/2)*ones + 2*(Ev-1/2*ones)*Ec
+    value = np.log(1/2)*ones + 2*(Ev-1/2)*Ec
     print('elbo_v:', np.sum(value))
     return np.sum(value)
 
@@ -422,7 +421,7 @@ def get_diff(param, param_old, diff_list):
 
 #####
 np.random.seed(0)
-T=5
+T=6
 
 
 covar_c = np.identity(T)*.2#np.array([.1,.2,.3,.4])
@@ -431,7 +430,7 @@ mu_0 = 0
 covar_h = np.identity(T)*.3#np.array([.4,.3,.2,.1])
 h_0 = 0
 
-u = -.3*np.ones(T)#np.array([.1, .2, .3, .4])
+u = 0*np.ones(T)#np.array([.1, .2, .3, .4])
 
 Wi = .1
 Wf = .1
@@ -575,12 +574,10 @@ while diff > tol:
 
 
     #convergence check
-    
-
     diff = np.amax( diff_list )
     diff_vec.append(diff)
 
-    
+    '''
     elbo = get_elbo(T,  mu_0, covar_c, h_0, covar_h, Wi, Wf, Wp, Wo, 
              Ui, Uf, Up, Uo, u, 
              Ec, Ecc, Ev, Eh, Ehh, Ezi, Ezf, Ezp, Ezo, E_gamma, 
@@ -589,7 +586,7 @@ while diff > tol:
 
     elbo_vec.append(elbo)
     print(' ')
-    
+    '''
     k+=1
 
 '''
