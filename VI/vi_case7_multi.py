@@ -71,21 +71,71 @@ def get_c_expects(Lambda, Lambda_m):
 
 ###############################################################
 
+def Lambda_h_op(t, Eomega_star, W_star, Lambda):
+    diag = np.diag(Eomega_star[t+1,:,:][:,0])
+    Lambda[t,:,:] += W_star.T @ diag @ W_star
+    return Lambda
 
-def update_qh(T, h_0, covar, Wi, Wf, Wp, Wo, 
+'''
+def Lambda_h_m_op(t, Ez_star, Eomega_star, W_star, 
+                  U_star, b_star, u, Lambda_m):
+    Lambda_m[t,:,:] += W_star.T @ (Ez_star[t+1,:,:]-1/2)
+    Lambda_m[t,:,:] += -W_star.T @ (Eomega__star[t+1,:,:]
+                                    *U_star @ u[t+1,:,:]+b_star)
+    return Lambda_m
+'''
+
+def Lambda_h_m_op( Ez_star, Eomega_star, W_star, 
+                  U_star, b_star, u, Lambda_m):
+    Lambda_m[:-1,:,:] += W_star.T @ (Ez_star[1:,:,:]-1/2)
+    Lambda_m[:-1,:,:] += -W_star.T @ (Eomega_star[1:,:,:]
+                                    *U_star @ u[1:,:,:]+b_star)
+    return Lambda_m
+
+
+def update_qh(T,d,h_0, inv_covar, Wi, Wf, Wp, Wo, 
               u, Ui, Uf, Up, Uo, Ev, Eomega_i, Eomega_f, 
               Eomega_p, Eomega_o, Ezi, Ezf, Ezp, Ezo):
-
-    Lambda = np.zeros(T)
-    Lambda_m = np.zeros(T)
     
-    Lambda += 1/np.diag(covar)
+    #Construct Precision_d matrix
+    #Lambda shape (T,d,d)
+    Lambda = inv_covar
+    for t in range(0,T-1):
+        Lambda += Lambda_h_op(t, Eomega_i, Wi, Lambda)
+        Lambda += Lambda_h_op(t, Eomega_f, Wf, Lambda)
+        Lambda += Lambda_h_op(t, Eomega_p, Wp, Lambda)
+        Lambda += Lambda_h_op(t, Eomega_o, Wo, Lambda)
+        
+
+    '''
+    #old 1d case
     Lambda[:-1] += Eomega_i[1:]*Wi**2
     Lambda[:-1] += Eomega_f[1:]*Wf**2
     Lambda[:-1] += Eomega_p[1:]*Wp**2
     Lambda[:-1] += Eomega_o[1:]*Wo**2
-    
+    '''
 
+    #Lambda_m shape = (T,d,1)
+    
+    Lambda_m = inv_covar @ ( Ezo*(2*Ev-1) )
+    Lambda_m += Lambda_h_m_op(Ezi, Eomega_i, Wi, Ui, bi, u, Lambda_m)
+    Lambda_m += Lambda_h_m_op(Ezf, Eomega_f, Wf, Uf, bf, u, Lambda_m)
+    Lambda_m += Lambda_h_m_op(Ezp, Eomega_p, Wp, Up, bp, u, Lambda_m)
+    Lambda_m += Lambda_h_m_op(Ezo, Eomega_o, Wo, Uo, bo, u, Lambda_m)
+
+    '''
+    for t in range(0,T-1):
+        Lambda_m += Lambda_h_m_op(t, Ezi, Eomega_i, Wi, 
+                                  Ui, bi, u, Lambda_m)
+        Lambda_m += Lambda_h_m_op(t, Ezf, Eomega_f, Wf, 
+                                  Uf, bf, u, Lambda_m)
+        Lambda_m += Lambda_h_m_op(t, Ezp, Eomega_p, Wp, 
+                                  Up, bp, u, Lambda_m)
+        Lambda_m += Lambda_h_m_op(t, Ezo, Eomega_o, Wo, 
+                                  Uo, bo, u, Lambda_m)        
+    '''
+
+    '''
     Lambda_m += 1/np.diag(covar)*Ezo*(2*Ev-1)
     
     Lambda_m[:-1] += (Ezi[1:]-1/2)*Wi 
@@ -98,7 +148,7 @@ def update_qh(T, h_0, covar, Wi, Wf, Wp, Wo,
     Lambda_m[:-1] += -Eomega_f[1:]*(Uf*u[1:]+bf)*Wf
     Lambda_m[:-1] += -Eomega_p[1:]*(Up*u[1:]+bp)*Wp
     Lambda_m[:-1] += -Eomega_o[1:]*(Uo*u[1:]+bo)*Wo
-    
+    '''
     return Lambda, Lambda_m
     
 def get_h_expects(Lambda, Lambda_m):
@@ -421,35 +471,55 @@ def get_diff(param, param_old, diff_list):
 
 #####
 np.random.seed(0)
-T=10
+T=4
+d = 3
+ud = 2
+
+mu_c0 = .1
+mu_h0 = .2
+
+inv_covar_c = 1/.2*np.random.uniform(-1,1, size=(d,T))
+c_0 = mu_c0*np.ones(d)
+
+inv_covar_h = np.zeros((T,d,d))
+for t in range(0,T):
+    inv_covar_h[t,:,:] = 1/.3*np.identity(d)
+
+print(inv_covar_h)
+
+h_0 = mu_h0*np.ones(d)
+
+u = .4*np.ones((T, ud, 1))
+
+Wi = np.random.uniform(-1,1, size=(d,d))
+Wf = np.random.uniform(-1,1, size=(d,d))
+Wp = np.random.uniform(-1,1, size=(d,d))
+Wo = np.random.uniform(-1,1, size=(d,d))
+
+Ui = np.random.uniform(-1,1, size=(d,ud))
+Uf = np.random.uniform(-1,1, size=(d,ud))
+Up = np.random.uniform(-1,1, size=(d,ud))
+Uo = np.random.uniform(-1,1, size=(d,ud))
+
+bi = np.random.uniform(-1,1, size=(d,1))
+bf = np.random.uniform(-1,1, size=(d,1))
+bp = np.random.uniform(-1,1, size=(d,1))
+bo = np.random.uniform(-1,1, size=(d,1))
 
 
-covar_c = np.identity(T)*.2#np.array([.1,.2,.3,.4])
-mu_0 = 0
+W_i = np.concatenate((Wi, Ui, bi), axis=1)
+W_f = np.concatenate((Wf, Uf, bf), axis=1)
+W_p = np.concatenate((Wp, Up, bp), axis=1)
+W_o = np.concatenate((Wo, Uo, bo), axis=1)
 
-covar_h = np.identity(T)*.3#np.array([.4,.3,.2,.1])
-h_0 = 0
 
-u = .4*np.ones(T)#np.array([.1, .2, .3, .4])
 
-Wi = .1
-Wf = .1
-Wp = .1
-Wo = .1
 
-Ui = .1
-Uf = .1
-Up = .1
-Uo = .1
 
-bi = .1
-bf = .1
-bp = .1
-bo = .1
-     
-c,h,v,zi,zf,zp,zo = generate(T, mu_0, covar_c, h_0, 
-                          covar_h, Wi, Wf, Wp, Wo, 
-                           Ui, Uf, Up, Uo, bi, bf, bp, bo, u)
+'''     
+#c,h,v,zi,zf,zp,zo = generate(T, mu_0, covar_c, h_0, 
+ #                         covar_h, Wi, Wf, Wp, Wo, 
+  #                         Ui, Uf, Up, Uo, bi, bf, bp, bo, u)
 
 print('Mu_0=',mu_0)
 print('covar_c=')
@@ -464,35 +534,47 @@ print('zf', zf)
 print('zp', zp)
 print('zo', zo)
 print(' ')
-
+'''
 
 #Initialize
-E_gamma = .3*np.ones(T)
-Ev = .8*np.ones(T)
-Ezi = .3*np.ones(T)
-Ezf = .3*np.ones(T)
-Ezp = .3*np.ones(T)
-Ezo = .3*np.ones(T)
-Eomega_i = .3*np.ones(T)
-Eomega_f = .3*np.ones(T)
-Eomega_p = .3*np.ones(T)
-Eomega_o = .3*np.ones(T)
+E_gamma = .3*np.ones((T,d,1))
+Ev = .8*np.ones((T,d,1))
+Ezi = .3*np.ones((T,d,1))
+Ezf = .3*np.ones((T,d,1))
+Ezp = .3*np.ones((T,d,1))
+Ezo = .3*np.ones((T,d,1))
+Eomega_i = .3*np.ones((T,d,1))
+Eomega_f = .3*np.ones((T,d,1))
+Eomega_p = .3*np.ones((T,d,1))
+Eomega_o = .3*np.ones((T,d,1))
 
 
-Ec_old = np.ones(T)*np.inf
-Ecc_old = np.ones((T,T))*np.inf
-Eh_old = np.ones(T)*np.inf
-Ehh_old = np.ones(T)*np.inf
-Ev_old = np.ones(T)*np.inf
-gg_old = np.ones(T)*np.inf
-Ezi_old = np.ones(T)*np.inf
-Ezf_old = np.ones(T)*np.inf
-Ezp_old = np.ones(T)*np.inf
-Ezo_old = np.ones(T)*np.inf
-gi_old = np.ones(T)*np.inf
-gf_old = np.ones(T)*np.inf
-gp_old = np.ones(T)*np.inf
-go_old = np.ones(T)*np.inf
+
+Lambda, Lambda_m = update_qh(T,d,h_0, inv_covar_h, Wi, Wf, Wp, Wo, 
+              u, Ui, Uf, Up, Uo, Ev, Eomega_i, Eomega_f, 
+              Eomega_p, Eomega_o, Ezi, Ezf, Ezp, Ezo)
+print(Lambda)
+print(' ')
+print(Lambda_m)
+
+
+
+'''
+Ec_old = np.ones((T,d))*np.inf
+Ecc_old = np.ones((d,T,T))*np.inf
+Eh_old = np.ones((d,T))*np.inf
+Ehh_old = np.ones((d,T))*np.inf
+Ev_old = np.ones((d,T))*np.inf
+gg_old = np.ones((d,T))*np.inf
+Ezi_old = np.ones((d,T))*np.inf
+Ezf_old = np.ones((d,T))*np.inf
+Ezp_old = np.ones((d,T))*np.inf
+Ezo_old = np.ones((d,T))*np.inf
+gi_old = np.ones((d,T))*np.inf
+gf_old = np.ones((d,T))*np.inf
+gp_old = np.ones((d,T))*np.inf
+go_old = np.ones((d,T))*np.inf
+
 
 diff = np.inf
 tol = .001
@@ -577,7 +659,7 @@ while diff > tol:
     diff = np.amax( diff_list )
     diff_vec.append(diff)
 
-    '''
+    
     elbo = get_elbo(T,  mu_0, covar_c, h_0, covar_h, Wi, Wf, Wp, Wo, 
              Ui, Uf, Up, Uo, u, 
              Ec, Ecc, Ev, Eh, Ehh, Ezi, Ezf, Ezp, Ezo, E_gamma, 
@@ -586,10 +668,10 @@ while diff > tol:
 
     elbo_vec.append(elbo)
     print(' ')
-    '''
+    
     k+=1
 
-'''
+
 elbo = get_elbo(T,  mu_0, covar_c, h_0, covar_h, Wi, Wf, Wp, Wo, 
              Ui, Uf, Up, Uo, u, 
              Ec, Ecc, Ev, Eh, Ehh, Ezi, Ezf, Ezp, Ezo, E_gamma, 
@@ -598,7 +680,7 @@ elbo = get_elbo(T,  mu_0, covar_c, h_0, covar_h, Wi, Wf, Wp, Wo,
 
 elbo_vec.append(elbo)
 print(' ')
-'''
+
 
 
 print('Ec:', Ec)
@@ -682,3 +764,4 @@ plt.savefig('Error.png')
 plt.show()
 plt.close()
 
+'''
