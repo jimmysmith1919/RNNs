@@ -39,21 +39,15 @@ def generate(T, mu_0, covar_c, h_0, covar_h,
 def update_qc(T,d, c_0, inv_covar, Ezi, Ezf, Ezp, Ev, E_gamma):
     Lambda = np.zeros((d,T,T))
     
+
+    #Construct Precision Diagonal
     diag = np.zeros((d,T,1))
     diag += inv_covar+4*E_gamma
-    
-    print(Ezf)
-    Ezf_re = np.reshape(Ezf, (d,T,-1))
-    print(Ezf_re)
-#    diag[:,:-1,:] += inv_covar[:,1:,:]
-    print(diag)
-    print(' ')
-    #Construct Precision Diagonal
-    Lambda +=  diag*np.identity(T)
-    print(Lambda)
 
-#    print(Lambda)
-    #Lambda[:,:-1,:] += 
+    Ezf_re = np.reshape(Ezf.ravel('F'), (d,T,1))
+    print(Ezf_re)
+    diag[:,:-1,:] += inv_covar*Ezf_re[:,1:,:]
+    Lambda +=  diag*np.identity(T)
 
     '''
     diag1 = inv_covar*np.identity(T)
@@ -61,13 +55,22 @@ def update_qc(T,d, c_0, inv_covar, Ezi, Ezf, Ezp, Ev, E_gamma):
     diag2[:-1] = diag1[1:]*Ezf[1:]
     Lambda = np.diag(diag1+diag2+4*E_gamma)
     '''
+    #Construct Precision Off Diagonals
+    off_diag = -inv_covar*Ezf_re[:,1:,:]
+    print(off_diag)
+    Lambda[:,:-1,1:] += off_diag*np.identity(T-1)
+    Lambda[:,1:,:-1] += off_diag*np.identity(T-1)
+    print(Lambda)
     '''
     #Construct Precision Off diagonals
     off_diag = -1/(np.diag(covar)[1:])*Ezf[1:]
     Lambda += np.diag(off_diag, k=1)
     Lambda += np.diag(off_diag, k=-1)
+    '''
 
     #Construct Precision times mean
+    
+    '''
     Lambda_m = np.zeros((d,T,1))
 
     Lambda_m[0] = 1/covar[0,0]*mu_0*Ezf[0]
@@ -515,6 +518,8 @@ Ev = .8*np.ones((T,d,1))
 Ezi = .3*np.ones((T,d,1))
 Ezf = .3*np.ones((T,d,1))
 Ezf[2:,1:,:] = .4
+Ezf[1,1,:] = .2
+Ezf[0,0,:] = .6
 Ezp = .3*np.ones((T,d,1))
 Ezo = .3*np.ones((T,d,1))
 Eomega_i = .3*np.ones((T,d,1))
