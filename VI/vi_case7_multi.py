@@ -36,30 +36,45 @@ def generate(T, mu_0, covar_c, h_0, covar_h,
     return c, h, v, zi, zf, zp, zo
 
 ####update c ########################################################
-def update_qc(T, mu_0, covar, Ezi, Ezf, Ezp, Ev, E_gamma):
-    Lambda = np.zeros((T,T))
-    Lambda_m = np.zeros(T)
-
-    #ones = np.ones(T)
+def update_qc(T,d, c_0, inv_covar, Ezi, Ezf, Ezp, Ev, E_gamma):
+    Lambda = np.zeros((d,T,T))
     
+    diag = np.zeros((d,T,1))
+    diag += inv_covar+4*E_gamma
+    
+    print(Ezf)
+    Ezf_re = np.reshape(Ezf, (d,T,-1))
+    print(Ezf_re)
+#    diag[:,:-1,:] += inv_covar[:,1:,:]
+    print(diag)
+    print(' ')
     #Construct Precision Diagonal
-    diag1 = 1/np.diag(covar)
+    Lambda +=  diag*np.identity(T)
+    print(Lambda)
+
+#    print(Lambda)
+    #Lambda[:,:-1,:] += 
+
+    '''
+    diag1 = inv_covar*np.identity(T)
     diag2 = np.zeros(T)
     diag2[:-1] = diag1[1:]*Ezf[1:]
     Lambda = np.diag(diag1+diag2+4*E_gamma)
-
+    '''
+    '''
     #Construct Precision Off diagonals
     off_diag = -1/(np.diag(covar)[1:])*Ezf[1:]
     Lambda += np.diag(off_diag, k=1)
     Lambda += np.diag(off_diag, k=-1)
 
     #Construct Precision times mean
-    Lambda_m = np.zeros(T)
+    Lambda_m = np.zeros((d,T,1))
+
     Lambda_m[0] = 1/covar[0,0]*mu_0*Ezf[0]
     Lambda_m += diag1*Ezi*(2*Ezp-1)
     Lambda_m += 2*(Ev-1/2)
     Lambda_m[:-1] += -diag1[1:]*Ezi[1:]*Ezf[1:]*(2*Ezp[1:]-1)
-    
+    '''
     return  Lambda, Lambda_m
 
 def get_c_expects(Lambda, Lambda_m):
@@ -71,26 +86,17 @@ def get_c_expects(Lambda, Lambda_m):
 
 ###############################################################
 
-def Lambda_h_op(t, Eomega_star, W_star, Lambda):
-    diag = np.diag(Eomega_star[t+1,:,:][:,0])
-    Lambda[t,:,:] += W_star.T @ diag @ W_star
-    return Lambda
+def Lambda_h_op(t, Eomega_star, W_star):
+    value = W_star.T @ (Eomega_star[t+1,:,:][:,0]* W_star)
+    return value
 
-'''
-def Lambda_h_m_op(t, Ez_star, Eomega_star, W_star, 
-                  U_star, b_star, u, Lambda_m):
-    Lambda_m[t,:,:] += W_star.T @ (Ez_star[t+1,:,:]-1/2)
-    Lambda_m[t,:,:] += -W_star.T @ (Eomega__star[t+1,:,:]
-                                    *U_star @ u[t+1,:,:]+b_star)
-    return Lambda_m
-'''
 
 def Lambda_h_m_op( Ez_star, Eomega_star, W_star, 
-                  U_star, b_star, u, Lambda_m):
-    Lambda_m[:-1,:,:] += W_star.T @ (Ez_star[1:,:,:]-1/2)
-    Lambda_m[:-1,:,:] += -W_star.T @ (Eomega_star[1:,:,:]
-                                    *U_star @ u[1:,:,:]+b_star)
-    return Lambda_m
+                  U_star, b_star, u):
+    value = W_star.T @ (Ez_star[1:,:,:]-1/2)
+    value  += -W_star.T @ (Eomega_star[1:,:,:]
+                           *(U_star @ u[1:,:,:]+b_star))
+    return value
 
 
 def update_qh(T,d,h_0, inv_covar, Wi, Wf, Wp, Wo, 
@@ -99,56 +105,24 @@ def update_qh(T,d,h_0, inv_covar, Wi, Wf, Wp, Wo,
     
     #Construct Precision_d matrix
     #Lambda shape (T,d,d)
-    Lambda = inv_covar
+    Lambda = np.zeros((T,d,d))
+    Lambda += inv_covar*np.identity(d)
     for t in range(0,T-1):
-        Lambda += Lambda_h_op(t, Eomega_i, Wi, Lambda)
-        Lambda += Lambda_h_op(t, Eomega_f, Wf, Lambda)
-        Lambda += Lambda_h_op(t, Eomega_p, Wp, Lambda)
-        Lambda += Lambda_h_op(t, Eomega_o, Wo, Lambda)
-        
-
-    '''
-    #old 1d case
-    Lambda[:-1] += Eomega_i[1:]*Wi**2
-    Lambda[:-1] += Eomega_f[1:]*Wf**2
-    Lambda[:-1] += Eomega_p[1:]*Wp**2
-    Lambda[:-1] += Eomega_o[1:]*Wo**2
-    '''
+        Lambda[t,:,:] += Lambda_h_op(t, Eomega_i, Wi)
+        Lambda[t,:,:] += Lambda_h_op(t, Eomega_f, Wf)
+        Lambda[t,:,:] += Lambda_h_op(t, Eomega_p, Wp)
+        Lambda[t,:,:] += Lambda_h_op(t, Eomega_o, Wo)
+    
 
     #Lambda_m shape = (T,d,1)
-    
-    Lambda_m = inv_covar @ ( Ezo*(2*Ev-1) )
-    Lambda_m += Lambda_h_m_op(Ezi, Eomega_i, Wi, Ui, bi, u, Lambda_m)
-    Lambda_m += Lambda_h_m_op(Ezf, Eomega_f, Wf, Uf, bf, u, Lambda_m)
-    Lambda_m += Lambda_h_m_op(Ezp, Eomega_p, Wp, Up, bp, u, Lambda_m)
-    Lambda_m += Lambda_h_m_op(Ezo, Eomega_o, Wo, Uo, bo, u, Lambda_m)
+    Lambda_m = np.zeros((T,d,1))
+    Lambda_m += inv_covar * ( Ezo*(2*Ev-1) )
+    Lambda_m[:-1,:,:] += Lambda_h_m_op(Ezi, Eomega_i, Wi, Ui, bi, u)
+    Lambda_m[:-1,:,:] += Lambda_h_m_op(Ezf, Eomega_f, Wf, Uf, bf, u)
+    Lambda_m[:-1,:,:] += Lambda_h_m_op(Ezp, Eomega_p, Wp, Up, bp, u)
+    Lambda_m[:-1,:,:] += Lambda_h_m_op(Ezo, Eomega_o, Wo, Uo, bo, u)
 
-    '''
-    for t in range(0,T-1):
-        Lambda_m += Lambda_h_m_op(t, Ezi, Eomega_i, Wi, 
-                                  Ui, bi, u, Lambda_m)
-        Lambda_m += Lambda_h_m_op(t, Ezf, Eomega_f, Wf, 
-                                  Uf, bf, u, Lambda_m)
-        Lambda_m += Lambda_h_m_op(t, Ezp, Eomega_p, Wp, 
-                                  Up, bp, u, Lambda_m)
-        Lambda_m += Lambda_h_m_op(t, Ezo, Eomega_o, Wo, 
-                                  Uo, bo, u, Lambda_m)        
-    '''
-
-    '''
-    Lambda_m += 1/np.diag(covar)*Ezo*(2*Ev-1)
     
-    Lambda_m[:-1] += (Ezi[1:]-1/2)*Wi 
-    Lambda_m[:-1] += (Ezf[1:]-1/2)*Wf
-    Lambda_m[:-1] += (Ezp[1:]-1/2)*Wp
-    Lambda_m[:-1] += (Ezo[1:]-1/2)*Wo
-    
-
-    Lambda_m[:-1] += -Eomega_i[1:]*(Ui*u[1:]+bi)*Wi
-    Lambda_m[:-1] += -Eomega_f[1:]*(Uf*u[1:]+bf)*Wf
-    Lambda_m[:-1] += -Eomega_p[1:]*(Up*u[1:]+bp)*Wp
-    Lambda_m[:-1] += -Eomega_o[1:]*(Uo*u[1:]+bo)*Wo
-    '''
     return Lambda, Lambda_m
     
 def get_h_expects(Lambda, Lambda_m):
@@ -478,16 +452,16 @@ ud = 2
 mu_c0 = .1
 mu_h0 = .2
 
-inv_covar_c = 1/.2*np.random.uniform(-1,1, size=(d,T))
-c_0 = mu_c0*np.ones(d)
+inv_covar_c = 1/.2*np.ones((d,1,1))
+c_0 = mu_c0*np.ones((d,1))
 
-inv_covar_h = np.zeros((T,d,d))
-for t in range(0,T):
-    inv_covar_h[t,:,:] = 1/.3*np.identity(d)
+inv_covar_h = 1/.3*np.ones((d,1))#identity(d)
 
+
+print('inv_covar_h')
 print(inv_covar_h)
 
-h_0 = mu_h0*np.ones(d)
+h_0 = mu_h0*np.ones((d,1))
 
 u = .4*np.ones((T, ud, 1))
 
@@ -515,7 +489,6 @@ W_o = np.concatenate((Wo, Uo, bo), axis=1)
 
 
 
-
 '''     
 #c,h,v,zi,zf,zp,zo = generate(T, mu_0, covar_c, h_0, 
  #                         covar_h, Wi, Wf, Wp, Wo, 
@@ -537,10 +510,11 @@ print(' ')
 '''
 
 #Initialize
-E_gamma = .3*np.ones((T,d,1))
+E_gamma = .3*np.ones((d,T,1))
 Ev = .8*np.ones((T,d,1))
 Ezi = .3*np.ones((T,d,1))
 Ezf = .3*np.ones((T,d,1))
+Ezf[2:,1:,:] = .4
 Ezp = .3*np.ones((T,d,1))
 Ezo = .3*np.ones((T,d,1))
 Eomega_i = .3*np.ones((T,d,1))
@@ -549,6 +523,10 @@ Eomega_p = .3*np.ones((T,d,1))
 Eomega_o = .3*np.ones((T,d,1))
 
 
+Lambda_c, Lambda_c_m  = update_qc(T,d, c_0, inv_covar_c, 
+                               Ezi, Ezf, Ezp, Ev, E_gamma)
+print('E_gamma')
+print(E_gamma)
 
 Lambda, Lambda_m = update_qh(T,d,h_0, inv_covar_h, Wi, Wf, Wp, Wo, 
               u, Ui, Uf, Up, Uo, Ev, Eomega_i, Eomega_f, 
@@ -557,7 +535,7 @@ print(Lambda)
 print(' ')
 print(Lambda_m)
 
-
+print(' ')
 
 '''
 Ec_old = np.ones((T,d))*np.inf
