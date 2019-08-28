@@ -170,20 +170,20 @@ def update_qv(Eh, covar, Ec, Ezo):
 ############################################################
 
 def W_Eh_z_update(W_star, U_star, b_star, u, Eh, h_0, value):
-    value[0] += W_star*h_0
-    value[1:] += W_star*Eh[:-1]
-    value += U_star*u + b_star
+    value[0,:,:] += W_star @ h_0
+    value[1:,:,:] += W_star @ Eh[:-1,:,:]
+    value += U_star @ u + b_star
     return value
 
 def update_zi(T,d, c_0, inv_covar, Wi, Ui, bi, u, h_0, 
               Eh, Ec, Ezp, Ezf):
     value = np.zeros((T,d,1))
     value += inv_covar*Ec*(2*Ezp-1)
-    print(value)
-    print(value[0,:,:].shape)
-    value[0,:,:] += -inv_covar*Ezf[0]*c_0*(2*Ezp[0]-1)
-    print(value)
-    
+    value[0,:,:] += -inv_covar*Ezf[0,:,:]*c_0*(2*Ezp[0,:,:]-1)
+    value[1:,:,:] += -inv_covar*Ezf[1:,:,:]*Ec[:-1,:,:]*(
+        2*Ezp[1:,:,:]-1 )
+    value += -.5*inv_covar
+    value = W_Eh_z_update(Wi, Ui, bi, u, Eh, h_0, value)
 
     '''
      Lambda_m[:,0,:] += (inv_covar*c_0*(
@@ -507,12 +507,12 @@ bf = np.random.uniform(-1,1, size=(d,1))
 bp = np.random.uniform(-1,1, size=(d,1))
 bo = np.random.uniform(-1,1, size=(d,1))
 
-
+'''
 W_i = np.concatenate((Wi, Ui, bi), axis=1)
 W_f = np.concatenate((Wf, Uf, bf), axis=1)
 W_p = np.concatenate((Wp, Up, bp), axis=1)
 W_o = np.concatenate((Wo, Uo, bo), axis=1)
-
+'''
 
 
 
@@ -566,7 +566,7 @@ Eh, Ehh = get_moments(Lambda_h, Lambda_h_m)
 
 Ezi = update_zi(T,d, c_0, inv_covar_c, Wi, Ui, bi, u, h_0, 
               Eh, Ec, Ezp, Ezf)
-
+print(Ezi)
 
 
 
