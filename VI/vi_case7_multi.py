@@ -98,7 +98,14 @@ def get_moments(Lambda, Lambda_m):
     Emm = (Em[...,None]*Em[:,None,:]).reshape(Sigma.shape)+Sigma
     return Em, Emm
 
-
+def get_diags(Exx,d,T):
+    '''Extracts diagonals and 1 off diagonals from dxTxT array '''
+    diags = np.zeros((d,T))
+    off_diags = np.zeros((d,T-1))
+    for i in range(0,d):
+        diags[i,:] = np.diag(Ecc[i,:,:])
+        off_diags[i,:] = np.diag(Ecc[i,:,:], k=-1)
+    return diags, off_diags
 
 ###############################################################
 
@@ -177,8 +184,7 @@ def W_Eh_z_update(W_star, U_star, b_star, u, Eh, h_0, value):
 
 def update_zi(T,d, c_0, inv_covar, Wi, Ui, bi, u, h_0, 
               Eh, Ec, Ezp, Ezf):
-    value = np.zeros((T,d,1))
-    value += inv_covar*Ec*(2*Ezp-1)
+    value = inv_covar*Ec*(2*Ezp-1)
     value[0,:,:] += -inv_covar*Ezf[0,:,:]*c_0*(2*Ezp[0,:,:]-1)
     value[1:,:,:] += -inv_covar*Ezf[1:,:,:]*Ec[:-1,:,:]*(
         2*Ezp[1:,:,:]-1 )
@@ -205,9 +211,22 @@ def update_zi(T,d, c_0, inv_covar, Wi, Ui, bi, u, h_0,
     '''
     return expit(value)
 
-def update_zf(mu_0, covar, Wf, Uf, bf, u, 
-              h_0, Eh,  Ec, Ecc, Ezi, Ezp):
-
+def update_zf(T,d, c_0, inv_covar, Wf, Uf, bf, u, 
+              h_0, Eh,  Ec, Ecc_diags, Ecc_off_diags, Ezi, Ezp):
+    value = np.zeros((T,d,1))
+    value[0,:,:] += inv_covar*Ec[0,:,:]*c_0
+    value[1:,:,:] += inv_covar*Ecc_off_diags
+    
+    value[0,:,:] += -1/2*inv_covar*c_0**2
+    value[1:,:,:] += -1/2*inv_covar*Ecc_diags[:-1,:,:]
+    
+    value[0,:,:] += -inv_covar*c_0*Ezi[0,:,:]*(2*Ezp[0,:,:]-1)
+    value[1:,:,:] += -inv_covar*Ec[:-1,:,:]*Ezi[1:,:,:]*(
+        2*Ezp[1:,:,:]-1 )
+    
+    value = W_Eh_z_update(Wf, Uf, bf, u, Eh, h_0, value)
+    
+    '''
     diag = np.diag(covar)
     
     Ecc_minus_1 = np.zeros(len(Ec))
@@ -229,11 +248,18 @@ def update_zf(mu_0, covar, Wf, Uf, bf, u,
     value += -1/diag*Ec_min1*Ezi*(2*Ezp-1)
     
     value = W_Eh_z_update(Wf, Uf, bf, u, Eh, h_0, value)
-    
+    '''
     return expit(value)
 
-def update_zp(mu_0, covar, Wp, Up, bp, u, h_0, Eh, Ec, Ezi, Ezf):
-    diag = np.diag(covar)
+def update_zp(c_0, inv_covar, Wp, Up, bp, u, h_0, Eh, Ec, Ezi, Ezf):
+    value = 2*inv_covar*Ec*Ezi
+
+    value[0,:,:] += -2*inv_covar*Ezf[0,:,:]*c_0*Ezi[0,:,:]
+    value[1:,:,:] += -2*inv_covar*Ezf[1:,:,:]*Ec[:-1,:,:]*Ezi[1:,:,:]
+    
+    value = W_Eh_z_update(Wp, Up, bp, u, Eh, h_0, value)
+    
+    '''diag = np.diag(covara)
     
     value = 2/diag*Ec*Ezi
 
@@ -243,7 +269,7 @@ def update_zp(mu_0, covar, Wp, Up, bp, u, h_0, Eh, Ec, Ezi, Ezf):
 
     value += -2/diag*Ezf*Ec_minus*Ezi
 
-    value = W_Eh_z_update(Wp, Up, bp, u, Eh, h_0, value)
+    value = W_Eh_z_update(Wp, Up, bp, u, Eh, h_0, value)'''
     return expit(value)
 
 def update_zo(h_0, covar, Wo, Uo, bo, u, Eh, Ev):
@@ -557,6 +583,13 @@ Lambda_c, Lambda_c_m  = update_qc(T,d, c_0, inv_covar_c,
 
 Ec, Ecc = get_moments(Lambda_c, Lambda_c_m)
 Ec = to_dxT(T,d, Ec)
+print('Ecc')
+print(Ecc)
+print()
+Ecc_diags, Ecc_off_diags = get_diags(Ecc,d,T)
+Ecc_diags = np.reshape(Ecc_diags.ravel('F'),(T,d,1))
+Ecc_off_diags = np.reshape(Ecc_off_diags.ravel('F'), (T-1,d,1))
+
 
 Lambda_h, Lambda_h_m = update_qh(T,d,h_0, inv_covar_h, Wi, Wf, Wp, 
               Wo, u, Ui, Uf, Up, Uo, Ev, Eomega_i, Eomega_f, 
@@ -566,8 +599,12 @@ Eh, Ehh = get_moments(Lambda_h, Lambda_h_m)
 
 Ezi = update_zi(T,d, c_0, inv_covar_c, Wi, Ui, bi, u, h_0, 
               Eh, Ec, Ezp, Ezf)
-print(Ezi)
 
+
+Ezf = update_zf(T,d, c_0, inv_covar_c, Wf, Uf, bf, u, 
+              h_0, Eh,  Ec, Ecc_diags, Ecc_off_diags, Ezi, Ezp)
+Ezp = update_zp(c_0, inv_covar_c, Wp, Up, bp, u, 
+                h_0, Eh, Ec, Ezi, Ezf)
 
 
 
