@@ -109,10 +109,12 @@ c = np.ones(5)*.3
 
 print(integrate.quad(qdf_log_pdf, np.zeros(5), np.ones(5)*np.inf, 
                      args=(np.ones(5),np.zeros(5), c), 
-                 epsabs=1e-1,   epsrel = 0))
+                 epsabs=1e-1*np.ones(5),   epsrel = 0*np.ones(5)))
 end = time.time()
 print(end-start)
 '''
+
+
 '''
 import time
 start = time.time()

@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.special import expit
 import matplotlib.pyplot as plt
-from E_PG import qdf_log_pdf, entropy_q
+from E_pg import qdf_log_pdf, entropy_q
 from scipy import integrate
 
 def generate(T, mu_0, covar_c, h_0, covar_h, 
@@ -103,8 +103,8 @@ def get_diags(Exx,d,T):
     diags = np.zeros((d,T))
     off_diags = np.zeros((d,T-1))
     for i in range(0,d):
-        diags[i,:] = np.diag(Ecc[i,:,:])
-        off_diags[i,:] = np.diag(Ecc[i,:,:], k=-1)
+        diags[i,:] = np.diag(Exx[i,:,:])
+        off_diags[i,:] = np.diag(Exx[i,:,:], k=-1)
     return diags, off_diags
 
 ###############################################################
@@ -361,49 +361,67 @@ def elbo_c(T, d, c_0, inv_covar, Ec, Ecc_diags, Ecc_off_diags):
     print('elbo_c:', np.sum(value))
     return np.sum(value)
 
-def elbo_h(h_0, covar, Eh, Ehh, Ezo, Ev):
-    diag = np.diag(covar)
+def elbo_h(T,d,h_0, inv_covar, Eh, Ehh_diags, Ezo, Ev):
+    value = np.zeros((T,d,1))
+    value += -1/2*inv_covar*Ehh_diags
+    value += inv_covar*Ezo*(2*Ev-1)*Eh
+    value += -1/2*inv_covar*Ezo
+    
+    
+    log_term = T*(-d/2*np.log(2*np.pi)-1/2*np.log(np.sum(inv_covar)))
+    value = np.sum(value)+log_term
+    
+    '''diag = np.diag(covar)
 
     value = np.log( 1/np.sqrt(2*np.pi*diag) )
     value += -1/2*( 1/diag )*Ehh
     value += 1/diag*Ezo*(2*Ev-1)*Eh
-    value += -1/2*1/diag*Ezo
-    print('elbo_h:', np.sum(value))
-    return np.sum(value)
+    value += -1/2*1/diag*Ezo'''
+    print('elbo_h:', value)
+    return value
 
     
-def elbo_z_star(Ez,Eh, h_0, W_star, U_star, b_star, u, star):
+def elbo_z_star(T,d,Ez,Eh, h_0, W_star, U_star, b_star, u, star):
     
+    value = np.zeros((T,d,1))
+    Uu_plus_b = U_star @ u + b_star
+    value[0,:,:] += (Ez[0,:,:]-1/2)*(W_star @ h_0 + Uu_plus_b[0,:,:])
+    value[1:,:,:] += (Ez[:-1,:,:]-1/2)*(W_star @ Eh[:-1,:,:] 
+                                       + Uu_plus_b[:-1,:,:])
+    value = np.sum(value)+T*d*np.log(1/2)
+    '''
     mod_Eh = np.zeros(len(Eh))
     mod_Eh[0] = h_0
     mod_Eh[1:] = Eh[:-1]
 
     value = np.zeros(len(Ez))
     value += np.log(1/2) 
-    value += (Ez-1/2)*(W_star*mod_Eh+U_star*u+b_star)
-    print('elbo_{}'.format(star), np.sum(value))
-    return np.sum(value)
+    value += (Ez-1/2)*(W_star*mod_Eh+U_star*u+b_star)'''
+    print('elbo_{}'.format(star), value)
+    return value
 
 
-def elbo_v(Ev, Ec):
-    ones = np.ones(len(Ev))
-    value = np.log(1/2)*ones + 2*(Ev-1/2)*Ec
-    print('elbo_v:', np.sum(value))
-    return np.sum(value)
+def elbo_v(T,d,Ev, Ec):
+    value = 2*(Ev-1/2)*Ec
+    value = np.sum(value)+T*d*np.log(1/2)
+    print('elbo_v:', value)
+    return value
 
-def elbo_gamma1(E_gamma, Ecc):
-    value = -1/2*E_gamma*4*np.diag(Ecc)
+def elbo_gamma1(T, d, E_gamma, Ecc_diags):
+    value = -1/2*E_gamma*4*Ecc_diags
     print('elbo_gamma1:', np.sum( value) )
     return np.sum( value )
 
-def elbo_gamma2(Ecc):
-    Ecc_diag = np.diag(Ecc)
+def elbo_gamma2(g):
     value = 0
-    for t in range(0,len(Ecc_diag)):
+    print(g)
+    print(len(g))
+    '''
+    for t in range(0,len(g)):
         value += integrate.quad(qdf_log_pdf, 0, np.inf,
                            args=(1,0, np.sqrt(4*Ecc_diag[t])),
                            epsabs=1e-1, epsrel = 0)[0]
-    print('elbo_gamma', value)
+    print('elbo_gamma', value)'''
     return value
 
 def elbo_omega_star_1(Eomega_star, g_star, star):
@@ -642,6 +660,8 @@ Lambda_h, Lambda_h_m = update_qh(T,d,h_0, inv_covar_h, Wi, Wf, Wp,
               Eomega_p, Eomega_o, Ezi, Ezf, Ezp, Ezo)
 
 Eh, Ehh = get_moments(Lambda_h, Lambda_h_m)
+Ehh_diags,_ = get_diags(Ehh,T,d)
+Ehh_diags = np.reshape(Ehh_diags,(T,d,1))
 
 Ezi = update_zi(T,d, c_0, inv_covar_c, Wi, Ui, bi, u, h_0, 
               Eh, Ec, Ezp, Ezf)
@@ -655,14 +675,23 @@ Ezo = update_zo(h_0, inv_covar_h, Wo, Uo, bo, u, Eh, Ev)
 
 Ev = update_qv(Eh, inv_covar_h, Ec, Ezo)
 
-g, E_gamma = update_q_gamma(Ecc_diags)
+g_gamma, E_gamma = update_q_gamma(Ecc_diags)
 
 
-g, E_omega = update_q_omega_star(T,d,Eh, Ehh, h_0, Wi, Ui, bi, u)
+gi, E_omega_i = update_q_omega_star(T,d,Eh, Ehh, h_0, Wi, Ui, bi, u)
 
 
 elbo = elbo_c(T, d, c_0, inv_covar_c, Ec, Ecc_diags, Ecc_off_diags)
 
+elbo = elbo_h(T,d, h_0, inv_covar_h, Eh, Ehh_diags, Ezo, Ev)
+
+elbo = elbo_z_star(T,d,Ezi,Eh, h_0, Wi, Ui, bi, u, 'i')
+
+elbo = elbo_v(T,d,Ev, Ec)
+
+elbo = elbo_gamma1(T, d, E_gamma, Ecc_diags)
+
+elbo = elbo_gamma2(g)
 '''
 Ec_old = np.ones((T,d))*np.inf
 Ecc_old = np.ones((d,T,T))*np.inf
