@@ -150,14 +150,34 @@ def update_qh(T,d,h_0, inv_covar, Wi, Wf, Wp, Wo,
     
     
 #############################################################
-def update_q_gamma(Ecc):
-    g = np.sqrt(4*np.diag(Ecc))
-    b = np.ones(len(g))
-    E_gamma = b/(2*g)*np.tanh(g/2)
-    return b, g, E_gamma
+def update_q_gamma(Ecc_diags):
+    g = np.sqrt(4*Ecc_diags)
+    E_gamma = 1/(2*g)*np.tanh(g/2)
+    return g, E_gamma
 
 
-def update_q_omega_star(Eh, Ehh, h_0, W_star, U_star, b_star, u):
+def update_q_omega_star(T,d,Eh, Ehh, h_0, W_star, U_star, b_star, u):
+    value = np.zeros((T,d,1))
+        
+    for i in range(0,d):
+        wwT = np.outer(W_star[i,:], W_star[i,:])
+        
+        tr_val = np.trace(wwT @ np.outer(h_0,h_0))
+        value[0,:,:] += tr_val
+        tr_val = np.trace(wwT @ Ehh[:-1,:,:], 
+                          axis1=1, axis2=2).reshape(d,1)
+        value[1:,i,:] += tr_val
+    
+    Uu_plus_b = U_star @ u + b_star
+    
+    value[0,:,:] += (2*W_star @ h_0)*Uu_plus_b[0,:,:]
+    value[1:,:,:] += (2*W_star @ Eh[:-1,:,:])*Uu_plus_b[1:,:,:]
+
+    value += Uu_plus_b**2
+    
+    g = np.sqrt(value)
+    E_omega = 1/(2*g)*np.tanh(g/2)
+    '''
     g = np.zeros(len(Ehh))
     g[0] = np.sqrt( (W_star**2)*h_0**2 +
                     2*(U_star*u[0]+b_star)*W_star*h_0 +
@@ -166,13 +186,14 @@ def update_q_omega_star(Eh, Ehh, h_0, W_star, U_star, b_star, u):
                      2*(U_star*u[1:]+b_star)*W_star*Eh[:-1] +
                      (U_star*u[1:]+b_star)**2 )
     b = np.ones(len(g))
-    E_omega = b/(2*g)*np.tanh(g/2)
+    E_omega = b/(2*g)*np.tanh(g/2)'''
     return g, E_omega
 ##############################################################
 
-def update_qv(Eh, covar, Ec, Ezo):
-    diag = np.diag(covar)
-    value = 2/diag*Eh*Ezo+2*Ec
+def update_qv(Eh, inv_covar, Ec, Ezo):
+    value = 2*inv_covar*Eh*Ezo+2*Ec
+    '''diag = np.diag(covar)
+    value = 2/diag*Eh*Ezo+2*Ec'''
     return expit(value)
 ############################################################
 
@@ -272,12 +293,16 @@ def update_zp(c_0, inv_covar, Wp, Up, bp, u, h_0, Eh, Ec, Ezi, Ezf):
     value = W_Eh_z_update(Wp, Up, bp, u, Eh, h_0, value)'''
     return expit(value)
 
-def update_zo(h_0, covar, Wo, Uo, bo, u, Eh, Ev):
+def update_zo(h_0, inv_covar, Wo, Uo, bo, u, Eh, Ev):
+    value = inv_covar*Eh*(2*Ev-1) - 1/2*inv_covar
+    value = W_Eh_z_update(Wo, Uo, bo, u, Eh, h_0, value)
+    '''
     diag = np.diag(covar)
     
     value = 1/diag*Eh*(2*Ev-1)-1/2*1/diag
 
     value = W_Eh_z_update(Wo, Uo, bo, u, Eh, h_0, value)
+    '''
     return expit(value)
 
                     
@@ -286,7 +311,27 @@ def update_zo(h_0, covar, Wo, Uo, bo, u, Eh, Ev):
 ##ELBO calculation###
 
 
-def elbo_c(mu_0, m, covar, Ecc):
+def elbo_c(T, d, c_0, inv_covar, Ec, Ecc_diags, Ecc_off_diags):
+    value = np.zeros((T,d,1))
+    value += np.log(np.sqrt(1/(2*np.pi)*inv_covar))
+
+    value += -1/2*inv_covar*Ecc_diags
+
+    value[0,:,:] += inv_covar*Ezf[0,:,:]*Ec[0,:,:]*c_0 
+    value[1:,:,:] += inv_covar*Ezf[1:,:,:]*Ec[:-1,:,:]*Ecc_off_diags
+
+    value += inv_covar*Ezi*(2*Ezp-1)*Ec
+
+    value[0,:,:] += -1/2*inv_covar*Ezf[0,:,:]*c_0**2
+    value[1:,:,:] += -1/2*inv_covar*Ezf[1:,:,:]*Ecc_diags[:-1,:,:]
+
+    value[0,:,:] += -inv_covar*Ezi[0,:,:]*Ezf[0,:,:]*(2*Ezp[0,:,:]
+                                                      -1)*c_0
+    value[1:,:,:] += -inv_covar*Ezi[1:,:,:]*Ezf[1:,:,:]*(2*Ezp[1:,:,:]
+                                                      -1)*Ec[:-1,:,:]
+    value += -1/2*inv_covar*Ezi
+
+    '''
     diag = np.diag(covar)
     Ecc_diag = np.diag(Ecc)
 
@@ -311,6 +356,7 @@ def elbo_c(mu_0, m, covar, Ecc):
     value += term
     
     value += -1/2*1/diag*Ezi
+    '''
     
     print('elbo_c:', np.sum(value))
     return np.sum(value)
@@ -605,11 +651,17 @@ Ezf = update_zf(T,d, c_0, inv_covar_c, Wf, Uf, bf, u,
               h_0, Eh,  Ec, Ecc_diags, Ecc_off_diags, Ezi, Ezp)
 Ezp = update_zp(c_0, inv_covar_c, Wp, Up, bp, u, 
                 h_0, Eh, Ec, Ezi, Ezf)
+Ezo = update_zo(h_0, inv_covar_h, Wo, Uo, bo, u, Eh, Ev)
+
+Ev = update_qv(Eh, inv_covar_h, Ec, Ezo)
+
+g, E_gamma = update_q_gamma(Ecc_diags)
 
 
+g, E_omega = update_q_omega_star(T,d,Eh, Ehh, h_0, Wi, Ui, bi, u)
 
 
-
+elbo = elbo_c(T, d, c_0, inv_covar_c, Ec, Ecc_diags, Ecc_off_diags)
 
 '''
 Ec_old = np.ones((T,d))*np.inf
