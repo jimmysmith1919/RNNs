@@ -308,11 +308,6 @@ def entropy_c(T, Ec, Ecc):
 
 
 def entropy_h(T, Eh, Ehh):
-    ###not using last h for this case
-    Eh = Eh[:-1]
-    Ehh = Ehh[:-1]
-    ###
-
     Sigma = Ehh-Eh**2
     print('Entropy_h:', T/2*(1+np.log(2*np.pi))+
           1/2*np.log( np.prod(Sigma) ))

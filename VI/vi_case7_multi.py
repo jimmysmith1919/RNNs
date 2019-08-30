@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.special import expit
 import matplotlib.pyplot as plt
-from E_pg import qdf_log_pdf, entropy_q
+from E_PG import qdf_log_pdf, entropy_q
 from scipy import integrate
 
 def generate(T, mu_0, covar_c, h_0, covar_h, 
@@ -96,7 +96,7 @@ def get_moments(Lambda, Lambda_m):
     Sigma = np.linalg.inv(Lambda)
     Em = Sigma @ Lambda_m
     Emm = (Em[...,None]*Em[:,None,:]).reshape(Sigma.shape)+Sigma
-    return Em, Emm
+    return Em, Emm, Sigma
 
 def get_diags(Exx,d,T):
     '''Extracts diagonals and 1 off diagonals from dxTxT array '''
@@ -411,43 +411,68 @@ def elbo_gamma1(T, d, E_gamma, Ecc_diags):
     value = -1/2*E_gamma*4*Ecc_diags
     print('elbo_gamma1:', np.sum( value) )
     return np.sum( value )
-
+'''
 def elbo_gamma2(g):
     value = 0
-    print(g)
-    print(len(g))
-    '''
-    for t in range(0,len(g)):
+    g_arr = g.ravel()
+    for i in range(0,len(g_arr)):
         value += integrate.quad(qdf_log_pdf, 0, np.inf,
-                           args=(1,0, np.sqrt(4*Ecc_diag[t])),
+                           args=(1,0, g_arr[i]),
                            epsabs=1e-1, epsrel = 0)[0]
-    print('elbo_gamma', value)'''
+    print('elbo_gamma', value)
+    
+    #for t in range(0,len(g)):
+     #   value += integrate.quad(qdf_log_pdf, 0, np.inf,
+      #                     args=(1,0, np.sqrt(4*Ecc_diag[t])),
+       3                    epsabs=1e-1, epsrel = 0)[0]
+    #print('elbo_gamma', value)
     return value
-
+'''
 def elbo_omega_star_1(Eomega_star, g_star, star):
-    value = -1/2*Eomega_star*g_star**2
+    value = -1/2*Eomega_star*(g_star)**2
     print('elbo_omega1_{}:'.format(star), np.sum( value) )
     return np.sum( value )
 
+'''
 def elbo_omega2_star(g_star, star):
     value = 0
+    g_arr = 
     for t in range(0,len(g_star)):
         value += integrate.quad(qdf_log_pdf, 0, np.inf,
                            args=(1,0, g_star[t]),
                            epsabs=1e-1, epsrel = 0)[0]
     print('elbo_omega2_{}'.format(star), value)
     return value
-
-
-def entropy_c(T, Ec, Ecc):
+'''
+def elbo_PG(g, str):
+    value = 0
+    g_arr = g.ravel()
+    for i in range(0,len(g_arr)):
+        value += integrate.quad(qdf_log_pdf, 0, np.inf,
+                           args=(1,0, g_arr[i]),
+                           epsabs=1e-1, epsrel = 0)[0]
+    print(str, value)
+    return value
+    
+'''
+def entropy_c(T,d, Sigma_c):
     #need to make more efficient
-    Sigma = Ecc-np.outer(Ec,Ec)
+    value = np.sum(1/2*np.log(np.linalg.det(Sigma_c)))
+    value += ( (T*d)/2 )*(1+np.log(2*np.pi))
+    
     print('Entropy_c:', T/2*(1+np.log(2*np.pi))+
           1/2*np.log( np.linalg.det(Sigma) ))
-    return T/2*(1+np.log(2*np.pi))+1/2*np.log( np.linalg.det(Sigma) )
+    a = T/2*(1+np.log(2*np.pi))+1/2*np.log( np.linalg.det(Sigma) )
+
+    print('Entropy_c:', value)
+    return value
 
 
-def entropy_h(T, Eh, Ehh):
+def entropy_h(T, d, Sigma_h):
+    value = np.sum(1/2*np.log(np.linalg.det(Sigma_h)))
+    value += ( (T*d)/2 )*(1+np.log(2*np.pi))
+
+    
     ###not using last h for this case
     Eh = Eh[:-1]
     Ehh = Ehh[:-1]
@@ -456,9 +481,27 @@ def entropy_h(T, Eh, Ehh):
     Sigma = Ehh-Eh**2
     print('Entropy_h:', T/2*(1+np.log(2*np.pi))+
           1/2*np.log( np.prod(Sigma) ))
-    return T/2*(1+np.log(2*np.pi))+1/2*np.log( np.prod(Sigma) )
+    return 
+'''
 
-def entropy_Bern(p, str):
+def entropy_Gauss(T,d,Sigma,str):
+    value = np.sum(1/2*np.log(np.linalg.det(Sigma)))
+    value += ( (T*d)/2 )*(1+np.log(2*np.pi))
+    print('Entropy_{}'.format(str), value)
+    return value
+
+
+def entropy_Bern(p, str):    
+    value = -p*np.log(p)-(1-p)*np.log(1-p)
+    value = np.nan_to_num(value, copy=False)
+    print('entropy_{}:'.format(str), np.sum(value))
+    '''value[check1] = 0
+    print(value)
+    value[check2] = 0
+    print(value)
+    '''
+
+    '''
     ones = np.ones(len(p))
     
     check1 = np.argwhere(np.isclose(p, np.zeros(len(p))))
@@ -467,6 +510,7 @@ def entropy_Bern(p, str):
     value[check1] = 0
     value[check2] = 0
     print('entropy_{}:'.format(str), np.sum(value))
+    '''
     return np.sum(value)
 
 
@@ -645,7 +689,7 @@ Eomega_o = .3*np.ones((T,d,1))
 Lambda_c, Lambda_c_m  = update_qc(T,d, c_0, inv_covar_c, 
                                Ezi, Ezf, Ezp, Ev, E_gamma)
 
-Ec, Ecc = get_moments(Lambda_c, Lambda_c_m)
+Ec, Ecc, Sigma_c  = get_moments(Lambda_c, Lambda_c_m)
 Ec = to_dxT(T,d, Ec)
 print('Ecc')
 print(Ecc)
@@ -659,7 +703,7 @@ Lambda_h, Lambda_h_m = update_qh(T,d,h_0, inv_covar_h, Wi, Wf, Wp,
               Wo, u, Ui, Uf, Up, Uo, Ev, Eomega_i, Eomega_f, 
               Eomega_p, Eomega_o, Ezi, Ezf, Ezp, Ezo)
 
-Eh, Ehh = get_moments(Lambda_h, Lambda_h_m)
+Eh, Ehh, Sigma_h = get_moments(Lambda_h, Lambda_h_m)
 Ehh_diags,_ = get_diags(Ehh,T,d)
 Ehh_diags = np.reshape(Ehh_diags,(T,d,1))
 
@@ -691,7 +735,21 @@ elbo = elbo_v(T,d,Ev, Ec)
 
 elbo = elbo_gamma1(T, d, E_gamma, Ecc_diags)
 
-elbo = elbo_gamma2(g)
+
+#elbo = elbo_PG(g_gamma, 'elbo_gamma2')
+
+elbo = elbo_omega_star_1(Eomega_i, gi, 'i')
+
+#elbo = elbo_PG(gi, 'elbo_omega_i_2')
+
+#elbo = entropy_c(T,d, Ec, Ecc, Sigma_c)
+
+elbo = entropy_Gauss(T,d,Sigma_c,'c')
+
+elbo = entropy_Gauss(T,d,Sigma_h,'h')
+
+elbo = entropy_Bern(Ezi, 'i')
+
 '''
 Ec_old = np.ones((T,d))*np.inf
 Ecc_old = np.ones((d,T,T))*np.inf
