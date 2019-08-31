@@ -60,82 +60,119 @@ def qdf_log_pdf(omega, b, psi, c):
     else:
         return pgpdf(omega,b,c)*np.log(pdf)
 
+
+def qdf_log_pdf_vec(omega, b, psi, c):
+    pdf = pgpdf(omega, b, psi, 10)
+    with np.errstate(divide='ignore'):
+        logpdf = np.log(pdf)
+    logpdf = np.nan_to_num(logpdf,copy=False)
+    qdf = pgpdf(omega,b,c,10)
+    return qdf*logpdf, qdf
+
+
 def entropy_q(omega, b, psi):
     pdf = pgpdf(omega, b, psi)
     if np.isclose(pdf, 0, atol=1e-07) == 1:
         return 0
     else:
         return -pdf*np.log(pdf)
+'''
+def entropy_q_vec(omega, b, psi):
+    pdf = pgpdf(omega, b, psi)
+    with np.errstate(divide='ignore'):
+        logpdf = np.log(pdf)
+    logpdf = np.nan_to_num(logpdf,copy=False)
+    return -pdf*logpdf
+'''
+def entropy_q_vec(qdf):
+    with np.errstate(divide='ignore'):
+        logqdf = np.log(qdf)
+    logqdf = np.nan_to_num(logqdf,copy=False)
+    return -qdf*logqdf
+
+
+
+
+
+
+
 
 
 '''
-print(integrate.quad(qdf_log_pdf, 0, np.inf, 
-                     args=(1,0, 100.0005), 
-                 epsabs=1e-4,   epsrel = 0))
-'''
-'''
-print(integrate.quad(pgpdf, 0, np.inf, 
-                     args=(1, 79), 
-                 epsabs=1e-4,   epsrel = 0))
-'''
-'''
-psi = 1
-
-Eom = 1/(2*psi)*np.tanh(psi/2)
-Eom_1 = -1/2*Eom*psi**2
-
-Eom_2 = integrate.quad(qdf_log_pdf, 0, np.inf, 
-                     args=(1,0, psi), 
-                 epsabs=1e-4,   epsrel = 0)[0]
-print('Eom_1:',Eom_1)
-print('Eom_2:', Eom_2)
-print('Eom1+Eom2:',Eom_1+Eom_2)
-
-
-b= integrate.quad(entropy_q, 0, np.inf, 
+k= integrate.quad(pgpdf, 0, np.inf, 
                      args=(1, psi), 
                  epsabs=1e-4,   epsrel = 0)[0]
-print('ent_q:',b)
+
+print(k)
 '''
-
-
 '''
-import time
-start = time.time()
+h = .01
+L = 100
+num = int(L/h)
 
-c = np.ones(5)*.3
+x = np.linspace (.00001,L,num )
+y = pgpdf(x, 1, 0, trunc=200)
+print(y)
 
-
-
-print(integrate.quad(qdf_log_pdf, np.zeros(5), np.ones(5)*np.inf, 
-                     args=(np.ones(5),np.zeros(5), c), 
-                 epsabs=1e-1*np.ones(5),   epsrel = 0*np.ones(5)))
-end = time.time()
-print(end-start)
+val = np.trapz(y, x)
+print(val)
 '''
-
 
 '''
 import time
+
+h = .001
+L = 10
+num = int(L/h)
+
+psi = 0
+c=3
+
+
+T = 4
+d=3
+
+a = .00001*np.ones((T,d,d))
+b = L * np.ones((T,d,d))
+psi = 12
+psi_vec = psi*np.ones((T,d,d))
+
 start = time.time()
+x = np.linspace (a,b,num )
 
+#y = qdf_log_pdf_vec(x, 1, psi, c)
+y = entropy_q_vec(x,1,psi_vec)
 
-print(integrate.quad(qdf_log_pdf, 0, np.inf, args=(1,0, c),
-      epsabs=1e-1))
+val1 = np.trapz(y, x, axis=0)
 end = time.time()
-print(end-start)
+print('Trapz:',val1)
+print('Time:', end-start)
+
+start = time.time()
+val2= integrate.quad(entropy_q, 0, np.inf, 
+                     args=(1, psi), 
+                 epsabs=1e-4,   epsrel = 0)[0]
+end= time.time()
+print('quad:',val2)
+print('Time:', end-start)
 '''
 
+'''
+start = time.time()
+x = np.linspace (.00001,L,num )
+#y = qdf_log_pdf_vec(x, 1, psi, c)
+y = entropy_q_vec(x,1,psi)
 
+val1 = np.trapz(y, x)
+end = time.time()
+print('Trapz:',val1)
+print('Time:', end-start)
 
-
-#print(integrate.quad(entropy_q, 0, np.inf, args=(1,c), epsabs=0, epsrel=1e-3))
-
-
-
-
-
-
-
-
-
+start = time.time()
+val2= integrate.quad(entropy_q, 0, np.inf, 
+                     args=(1, psi), 
+                 epsabs=1e-4,   epsrel = 0)[0]
+end= time.time()
+print('quad:',val2)
+print('Time:', end-start)
+'''

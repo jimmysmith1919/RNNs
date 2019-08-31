@@ -151,7 +151,7 @@ def update_zi(mu_0, covar, Wi, Ui, bi, u, h_0, Eh, Ec, Ezp, Ezf):
     Ec_minus[1:] = Ec[:-1]
     value += -1/diag*Ezf*Ec_minus*(2*Ezp-1)-(1/2)*(1/diag)
     
-    #value = W_Eh_z_update(Wi, Ui, bi, u, Eh, h_0, value)
+    value = W_Eh_z_update(Wi, Ui, bi, u, Eh, h_0, value)
     
     return expit(value)
 
@@ -178,7 +178,7 @@ def update_zf(mu_0, covar, Wf, Uf, bf, u,
 
     value += -1/diag*Ec_min1*Ezi*(2*Ezp-1)
     
-    #value = W_Eh_z_update(Wf, Uf, bf, u, Eh, h_0, value)
+    value = W_Eh_z_update(Wf, Uf, bf, u, Eh, h_0, value)
     
     return expit(value)
 
@@ -193,7 +193,7 @@ def update_zp(mu_0, covar, Wp, Up, bp, u, h_0, Eh, Ec, Ezi, Ezf):
 
     value += -2/diag*Ezf*Ec_minus*Ezi
 
-    #value = W_Eh_z_update(Wp, Up, bp, u, Eh, h_0, value)
+    value = W_Eh_z_update(Wp, Up, bp, u, Eh, h_0, value)
     return expit(value)
 
 def update_zo(h_0, covar, Wo, Uo, bo, u, Eh, Ev):
@@ -201,7 +201,7 @@ def update_zo(h_0, covar, Wo, Uo, bo, u, Eh, Ev):
     
     value = 1/diag*Eh*(2*Ev-1)-1/2*1/diag
 
-    #value = W_Eh_z_update(Wo, Uo, bo, u, Eh, h_0, value)
+    value = W_Eh_z_update(Wo, Uo, bo, u, Eh, h_0, value)
     return expit(value)
 
                     
@@ -499,18 +499,6 @@ elbo_vec = []
 
 k = 0
 
-Lambda_c, Lambda_c_m = update_qc(T, mu_0, covar_c, 
-                                     Ezi, Ezf, Ezp, Ev, E_gamma)
-Ec, Ecc = get_c_expects(Lambda_c, Lambda_c_m) 
-
-print(Ecc)
-b, gg, E_gamma = update_q_gamma(Ecc)
-print(gg)
-print(E_gamma)
-
-import sys
-sys.exit('end')
-
 
 while diff > tol:
     diff_list = []
@@ -583,7 +571,7 @@ while diff > tol:
     diff = np.amax( diff_list )
     diff_vec.append(diff)
 
-    
+    '''
     elbo = get_elbo(T,  mu_0, covar_c, h_0, covar_h, Wi, Wf, Wp, Wo, 
              Ui, Uf, Up, Uo, u, 
              Ec, Ecc, Ev, Eh, Ehh, Ezi, Ezf, Ezp, Ezo, E_gamma, 
@@ -592,10 +580,10 @@ while diff > tol:
 
     elbo_vec.append(elbo)
     print(' ')
-    
+    '''
     k+=1
 
-'''
+
 elbo = get_elbo(T,  mu_0, covar_c, h_0, covar_h, Wi, Wf, Wp, Wo, 
              Ui, Uf, Up, Uo, u, 
              Ec, Ecc, Ev, Eh, Ehh, Ezi, Ezf, Ezp, Ezo, E_gamma, 
@@ -604,7 +592,7 @@ elbo = get_elbo(T,  mu_0, covar_c, h_0, covar_h, Wi, Wf, Wp, Wo,
 
 elbo_vec.append(elbo)
 print(' ')
-'''
+
 
 
 print('Ec:', Ec)
