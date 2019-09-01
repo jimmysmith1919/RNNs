@@ -2,7 +2,7 @@ import numpy as np
 from scipy.special import expit
 import sys
 import matplotlib.pyplot as plt
-from E_PG import qdf_log_pdf, entropy_q, qdf_log_pdf_vec, entropy_q_vec
+from PG_int import qdf_log_pdf, entropy_q, qdf_log_pdf_vec, entropy_q_vec
 from scipy import integrate
 
 def generate(T, mu_0, covar_c, h_0, covar_h, 
