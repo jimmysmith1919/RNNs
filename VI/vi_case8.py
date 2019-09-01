@@ -92,8 +92,8 @@ def get_diags(Exx,d,T):
 
 ###############################################################
 
-def Lambda_h_op(t, Eomega_star, W_star):
-    value = W_star.T @ (Eomega_star[t+1,:,:][:,0]* W_star)
+def Lambda_h_op(t, d, Eomega_star, W_star):
+    value = W_star.T @ (Eomega_star[t+1,:,:]* W_star)
     return value
 
 
@@ -117,12 +117,14 @@ def update_qh(T,d,h_0, inv_covar, inv_covar_y, y, Wi, Wf, Wp, Wo, Wy,
     
     Lambda += Wy.T @ (inv_covar_y*Wy)
     Lambda += inv_covar*np.identity(d)
-    for t in range(0,T-1):
-        Lambda[t,:,:] += Lambda_h_op(t, Eomega_i, Wi)
-        Lambda[t,:,:] += Lambda_h_op(t, Eomega_f, Wf)
-        Lambda[t,:,:] += Lambda_h_op(t, Eomega_p, Wp)
-        Lambda[t,:,:] += Lambda_h_op(t, Eomega_o, Wo)
     
+    for t in range(0,T-1):
+        Lambda[t,:,:] += Lambda_h_op(t, d, Eomega_i, Wi)
+        Lambda[t,:,:] += Lambda_h_op(t, d, Eomega_f, Wf)
+        Lambda[t,:,:] += Lambda_h_op(t, d, Eomega_p, Wp)
+        Lambda[t,:,:] += Lambda_h_op(t, d, Eomega_o, Wo)
+
+
 
     #Lambda_m shape = (T,d,1)
     Lambda_m = np.zeros((T,d,1))
@@ -160,9 +162,8 @@ def update_q_omega_star(T,d,Eh, Ehh, h_0, W_star, U_star, b_star, u):
     
     value[0,:,:] += (2*W_star @ h_0)*Uu_plus_b[0,:,:]
     value[1:,:,:] += (2*W_star @ Eh[:-1,:,:])*Uu_plus_b[1:,:,:]
-
+    
     value += Uu_plus_b**2
-
     g = np.sqrt(value)
     E_omega = 1/(2*g)*np.tanh(g/2)
     return g, E_omega
@@ -267,26 +268,18 @@ def elbo_h(T,d,h_0, inv_covar, Eh, Ehh_diags, Ezo, Ev):
     print('elbo_h:', value)
     return value
 
-def elbo_y(T, yd, y, h_0, inv_covar_y, u, Uy, by, Eh, Ehh):
+def elbo_y(T, yd, y, inv_covar_y, u, Uy, by, Eh, Ehh):
     value = np.zeros((T,1))
     value += -1/2*np.sum(y*inv_covar_y*y,axis=1)
     
     Uu_plus_b = Uy @ u + by
     
+    value += np.sum(y*(inv_covar_y*(Wy @ Eh + Uu_plus_b)),axis=1)
     
-    value[0,:] += np.sum(y[0,:,:]*(inv_covar_y*(Wy @ h_0 + Uu_plus_b[0,:,:]))) 
-                                                
-    value[1:,:] += np.sum(y[1:,:,:]*(inv_covar_y*(Wy @ Eh[:-1,:,:] + 
-                                                Uu_plus_b[1:,:,:])),axis=1)
+    value += -1/2*np.trace(Wy.T @ (inv_covar_y*Wy) @ Ehh, 
+                           axis1=1, axis2 =2).reshape(T,1)
 
-    
-    value[0,:] += -1/2*np.trace(Wy.T @ (inv_covar_y*Wy) @ np.outer(h_0,h_0))
-    value[1:,:] += -1/2*np.trace(Wy.T @ (inv_covar_y*Wy) @ Ehh[:-1,:,:], 
-                             axis1=1, axis2 =2).reshape(T-1,1)
-
-    value[0,:] += -np.sum( Uu_plus_b[0,:,:]*((inv_covar_y*Wy) @ h_0))
-    value[1:,:] += -np.sum(Uu_plus_b[1:,:,:]*((inv_covar_y*Wy) @ Eh[:-1,:,:])
-                           ,axis=1) 
+    value += -np.sum(Uu_plus_b*((inv_covar_y*Wy) @ Eh), axis=1) 
 
     value += -1/2*np.sum(Uu_plus_b*(inv_covar_y*Uu_plus_b), axis=1)
 
@@ -397,7 +390,7 @@ def get_elbo(T, d, yd,  c_0, inv_covar_c, h_0, inv_covar_h,
              Eomega_i, Eomega_f, Eomega_p, Eomega_o, 
              gi, gf, gp , go, L, h):
 
-    elbo = elbo_y(T, yd, y, h_0, inv_covar_y, u, Uy, by, Eh, Ehh)
+    elbo = elbo_y(T, yd, y, inv_covar_y, u, Uy, by, Eh, Ehh)
     elbo += elbo_c(T, d, c_0, inv_covar_c, 
                   Ec, Ecc_diags, Ecc_off_diags)
     elbo += elbo_v(T, d, Ev, Ec)
@@ -441,7 +434,7 @@ def get_diff(param, param_old, diff_list):
 
 #####
 seed = np.random.randint(0,10000)
-#seed = 2782
+#seed = 0
 np.random.seed(seed)
 print('random_seed:',seed)
 
@@ -450,8 +443,8 @@ L = 10 #end of intergation interval
 h = .01 #grid spacing
 
 T=20
-d = 10
-ud = 5
+d = 5
+ud = 3
 yd = 1
 
 var_c = .2
@@ -532,6 +525,18 @@ print(' ')
 '''
 
 #Initialize
+E_gamma = np.random.uniform(0,1, size=(T,d,1))
+Ev = np.random.uniform(0,1, size=(T,d,1))
+Ezi = np.random.uniform(0,1, size=(T,d,1))
+Ezf = np.random.uniform(0,1, size=(T,d,1))
+Ezp = np.random.uniform(0,1, size=(T,d,1))
+Ezo = np.random.uniform(0,1, size=(T,d,1))
+Eomega_i = np.random.uniform(0,1, size=(T,d,1))
+Eomega_f = np.random.uniform(0,1, size=(T,d,1))
+Eomega_p = np.random.uniform(0,1, size=(T,d,1))
+Eomega_o = np.random.uniform(0,1, size=(T,d,1))
+
+'''
 E_gamma = .3*np.ones((T,d,1))
 Ev = .5*np.ones((T,d,1))
 Ezi = .5*np.ones((T,d,1))
@@ -542,7 +547,7 @@ Eomega_i = .5*np.ones((T,d,1))
 Eomega_f = .5*np.ones((T,d,1))
 Eomega_p = .5*np.ones((T,d,1))
 Eomega_o = .5*np.ones((T,d,1))
-
+'''
 
 Ec_old = np.ones((T,d,1))*np.inf
 Ecc_old = np.ones((d,T,T))*np.inf
@@ -671,7 +676,6 @@ while diff > tol:
     
     k+=1
     print(k)
-
 
 
 

@@ -93,7 +93,7 @@ def get_diags(Exx,d,T):
 ###############################################################
 
 def Lambda_h_op(t, Eomega_star, W_star):
-    value = W_star.T @ (Eomega_star[t+1,:,:][:,0]* W_star)
+    value = W_star.T @ (Eomega_star[t+1,:,:]* W_star)
     return value
 
 
@@ -399,24 +399,25 @@ def get_diff(param, param_old, diff_list):
     return diff_list, param_old
 
 #####
-seed = np.random.randint(0,10000)
+#seed = np.random.randint(0,10000)
+seed =10
 print('random seed:', seed)
 np.random.seed(seed)
 #elbo integration parameters
 L = 10 #end of intergation interval
 h = .01 #grid spacing
 
-T=20
-d = 10
-ud = 10
+T=4
+d = 1
+ud = 1
 
 
 inv_covar_c = 1/.2*np.ones((d,1))
-mu_c0 = 0
+mu_c0 = .4
 c_0 = mu_c0*np.ones((d,1))
 
 inv_covar_h = 1/.3*np.ones((d,1))
-mu_h0 = 0
+mu_h0 = .2
 h_0 = mu_h0*np.ones((d,1))
 
 u = np.random.uniform(-1,1, size=(T, ud, 1))
@@ -475,16 +476,16 @@ print(' ')
 '''
 
 #Initialize
-E_gamma = .3*np.ones((T,d,1))
-Ev = .5*np.ones((T,d,1))
-Ezi = .5*np.ones((T,d,1))
-Ezf = .5*np.ones((T,d,1))
-Ezp = .5*np.ones((T,d,1))
-Ezo = .5*np.ones((T,d,1))
-Eomega_i = .3*np.ones((T,d,1))
-Eomega_f = .3*np.ones((T,d,1))
-Eomega_p = .3*np.ones((T,d,1))
-Eomega_o = .3*np.ones((T,d,1))
+E_gamma = np.random.uniform(0,1, size=(T,d,1))
+Ev = np.random.uniform(0,1, size=(T,d,1))
+Ezi = np.random.uniform(0,1, size=(T,d,1))
+Ezf = np.random.uniform(0,1, size=(T,d,1))
+Ezp = np.random.uniform(0,1, size=(T,d,1))
+Ezo = np.random.uniform(0,1, size=(T,d,1))
+Eomega_i = np.random.uniform(0,1, size=(T,d,1))
+Eomega_f = np.random.uniform(0,1, size=(T,d,1))
+Eomega_p = np.random.uniform(0,1, size=(T,d,1))
+Eomega_o = np.random.uniform(0,1, size=(T,d,1))
 
 
 Ec_old = np.ones((T,d,1))*np.inf

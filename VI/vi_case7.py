@@ -415,7 +415,7 @@ def get_diff(param, param_old, diff_list):
     return diff_list, param_old
 
 #####
-np.random.seed(0)
+np.random.seed(10)
 T=4
 
 
@@ -425,8 +425,29 @@ mu_0 = .4
 covar_h = np.identity(T)*.3#np.array([.4,.3,.2,.1])
 h_0 = .2
 
-u = .4*np.ones(T)#np.array([.1, .2, .3, .4])
+u = np.random.uniform(-1,1, size=T)#.4*np.ones(T)#np.array([.1, .2, .3, .4])
 
+
+
+
+Wi = np.random.uniform(-1,1)
+Wf = np.random.uniform(-1,1)
+Wp = np.random.uniform(-1,1)
+Wo = np.random.uniform(-1,1)
+
+Ui = np.random.uniform(-1,1)
+Uf = np.random.uniform(-1,1)
+Up = np.random.uniform(-1,1)
+Uo = np.random.uniform(-1,1)
+
+bi = np.random.uniform(-1,1)
+bf = np.random.uniform(-1,1)
+bp = np.random.uniform(-1,1)
+bo = np.random.uniform(-1,1)
+
+
+
+'''
 Wi = .1
 Wf = .2
 Wp = .3
@@ -441,7 +462,8 @@ bi = -.3
 bf = .5
 bp = .7
 bo = .6
-     
+'''
+  
 '''
 c,h,v,zi,zf,zp,zo = generate(T, mu_0, covar_c, h_0, 
                           covar_h, Wi, Wf, Wp, Wo, 
@@ -463,6 +485,18 @@ print(' ')
 '''
 
 #Initialize
+E_gamma = np.random.uniform(0,1, size=(T))
+Ev = np.random.uniform(0,1, size=(T))
+Ezi = np.random.uniform(0,1, size=(T))
+Ezf = np.random.uniform(0,1, size=(T))
+Ezp = np.random.uniform(0,1, size=(T))
+Ezo = np.random.uniform(0,1, size=(T))
+Eomega_i = np.random.uniform(0,1, size=(T))
+Eomega_f = np.random.uniform(0,1, size=(T))
+Eomega_p = np.random.uniform(0,1, size=(T))
+Eomega_o = np.random.uniform(0,1, size=(T))
+
+'''
 E_gamma = .3*np.ones(T)
 Ev = .8*np.ones(T)
 Ezi = .3*np.ones(T)
@@ -473,7 +507,7 @@ Eomega_i = .3*np.ones(T)
 Eomega_f = .3*np.ones(T)
 Eomega_p = .3*np.ones(T)
 Eomega_o = .3*np.ones(T)
-
+'''
 
 Ec_old = np.ones(T)*np.inf
 Ecc_old = np.ones((T,T))*np.inf
