@@ -399,25 +399,27 @@ def get_diff(param, param_old, diff_list):
     return diff_list, param_old
 
 #####
-np.random.seed(0)
+seed = np.random.randint(0,10000)
+print('random seed:', seed)
+np.random.seed(seed)
 #elbo integration parameters
 L = 10 #end of intergation interval
 h = .01 #grid spacing
 
-T=4
-d = 3
-ud = 3
+T=20
+d = 10
+ud = 10
 
 
 inv_covar_c = 1/.2*np.ones((d,1))
-mu_c0 = .4
+mu_c0 = 0
 c_0 = mu_c0*np.ones((d,1))
 
 inv_covar_h = 1/.3*np.ones((d,1))
-mu_h0 = .2
+mu_h0 = 0
 h_0 = mu_h0*np.ones((d,1))
 
-u = .4*np.ones((T, ud, 1))
+u = np.random.uniform(-1,1, size=(T, ud, 1))
 
 '''
 Wi = .1*np.ones((d,d)) 
@@ -474,11 +476,11 @@ print(' ')
 
 #Initialize
 E_gamma = .3*np.ones((T,d,1))
-Ev = .8*np.ones((T,d,1))
-Ezi = .3*np.ones((T,d,1))
-Ezf = .3*np.ones((T,d,1))
-Ezp = .3*np.ones((T,d,1))
-Ezo = .3*np.ones((T,d,1))
+Ev = .5*np.ones((T,d,1))
+Ezi = .5*np.ones((T,d,1))
+Ezf = .5*np.ones((T,d,1))
+Ezp = .5*np.ones((T,d,1))
+Ezo = .5*np.ones((T,d,1))
 Eomega_i = .3*np.ones((T,d,1))
 Eomega_f = .3*np.ones((T,d,1))
 Eomega_p = .3*np.ones((T,d,1))
@@ -594,7 +596,7 @@ while diff > tol:
     diff = np.amax( diff_list )
     diff_vec.append(diff)
     
-    if k % 100 ==0:
+    if k % 1 ==0:
     
         elbo = get_elbo(T, d,  c_0, inv_covar_c, h_0, inv_covar_h, 
                         Wi, Wf, Wp, Wo, 
