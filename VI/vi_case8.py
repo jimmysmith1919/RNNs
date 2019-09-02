@@ -369,16 +369,20 @@ def entropy_PG(g,str):
     print('{}_entrpy'.format(str), value)
     return value
 '''
-
-
-
 def entropy_PG_vec(qdf,x,str):
     
     y = entropy_q_vec(qdf)
     value = np.trapz(y,x,axis=0)
+    
+    print('gam_ent:',np.sum(value[:T,:,:]))
+    print('omi_ent:',np.sum(value[T:2*T,:,:]))
+    print('omf_ent:',np.sum(value[2*T:3*T,:,:]))
+    print('omp_ent:',np.sum(value[3*T:4*T,:,:]))
+    print('omo_ent:',np.sum(value[4*T:,:,:]))
     value = np.sum(value)
     print('entrpy_{}'.format(str), value)
     return value
+
 
 def get_elbo(T, d, yd,  c_0, inv_covar_c, h_0, inv_covar_h, 
              Wi, Wf, Wp, Wo, y, inv_covar_y,
@@ -460,7 +464,6 @@ def get_Ex_Exx(T, d, ud, Eh, Ehh, u):
     Exx[:,-1,-1] += 1
     return Ex, Exx
 
-
 def update_W_bar_y(T, d, ud, yd, y, Ex, Exx):
     
     sumExx = np.sum(Exx, axis = 0)
@@ -471,6 +474,34 @@ def update_W_bar_y(T, d, ud, yd, y, Ex, Exx):
    
     return sumyExT @ np.linalg.inv(sumExx)
 
+def get_Ehmin_Ehhmin(T, d, Eh, Ehh, h_0):
+    #Construct Eh_min_1
+    Eh_min = np.zeros((T,d,1))
+    Eh_min[0,:,:] += h_0
+    Eh_min[1:,:,:] += Eh[:-1,:,:]
+
+    #Construct Eh_min_1_h_min_1.T
+    Ehh_min = np.zeros((T,d,d))
+    h0h0T = np.outer(h_0.reshape(d), h_0.reshape(d))
+    Ehh_min[0,:,:] += h0h0T
+    Ehh_min[1:,:,:] += Ehh[:-1,:,:]
+    
+    return Eh_min, Ehh_min
+
+def update_W_bar_star(T, d, ud, Ex, Exx, Eomega_star, Ez_star):
+    
+    
+    A = np.zeros((d, d+ud+1,d+ud+1))
+    rhs = np.zeros((d,d+ud+1,1))
+    for i in range(0,d):
+        om_Exx = Eomega_star[:,i,:].reshape(T,1,1)*Exx
+        
+        A[i,:,:] = np.sum(om_Exx, axis = 0)
+        
+        EzEx = (Ez_star[:,i,:].reshape(T,1,1)-1/2)*Ex
+        rhs[i,:,:] = np.sum(EzEx, axis=0)
+
+    return np.linalg.solve(A,rhs).reshape(d,d+ud+1)
 
 def extract_W_weights(W_bar, d, ud):
     W = W_bar[:,:d]
@@ -478,13 +509,10 @@ def extract_W_weights(W_bar, d, ud):
     b = W_bar[:,-1]
     return W, U, b
 
-
-
-
 #########################################################################
 #####
 #seed = np.random.randint(0,10000)
-seed = 0
+seed = 0#8604
 np.random.seed(seed)
 print('random_seed:',seed)
 
@@ -495,7 +523,7 @@ h = .01 #grid spacing
 T=5
 d = 4 
 ud = 2
-yd = 3
+yd = 1
 
 var_c = .2
 mu_c0 = .1
@@ -613,11 +641,14 @@ gi_old = np.ones((T,d,1))*np.inf
 gf_old = np.ones((T,d,1))*np.inf
 gp_old = np.ones((T,d,1))*np.inf
 go_old = np.ones((T,d,1))*np.inf
-W_bar_y_old = np.ones((yd, d+ud+1))
-
+W_bar_y_old = np.ones((yd, d+ud+1))*np.inf
+W_bar_i_old = np.ones((d, d+ud+1))*np.inf
+W_bar_f_old = np.ones((d, d+ud+1))*np.inf
+W_bar_p_old = np.ones((d, d+ud+1))*np.inf
+W_bar_o_old = np.ones((d, d+ud+1))*np.inf
 
 diff = np.inf
-tol = .01
+tol = .1
 
 
 diff_vec = []
@@ -730,67 +761,78 @@ for k in range(0,1):
     Wy, Uy, by = extract_W_weights(W_bar_y,  d, ud)
     by = by.reshape(yd,1)
     
+    
+    ###Update W_stars###
+    Eh_min, Ehh_min = get_Ehmin_Ehhmin(T, d, Eh, Ehh, h_0)
+    Ex, Exx = get_Ex_Exx(T, d, ud, Eh_min, Ehh_min, u)
+    
 
-
+    
+    #Update Wi
+    
+    W_bar_i = update_W_bar_star(T, d, ud, Ex, Exx, Eomega_i, Ezi)
+    diff_list, W_bar_i_old = get_diff( W_bar_i, W_bar_i_old, diff_list)
+    Wi, Ui, bi = extract_W_weights(W_bar_i,  d, ud)
+    bi = bi.reshape(d,1)
+    
+    
+    
+    #Update Wf
+    W_bar_f = update_W_bar_star(T, d, ud, Ex, Exx, Eomega_f, Ezf)
+    diff_list, W_bar_f_old = get_diff( W_bar_f, W_bar_f_old, diff_list)
+    Wf, Uf, bf = extract_W_weights(W_bar_f,  d, ud)
+    bf = bf.reshape(d,1)
+    
+    
+    #Update Wp
+    W_bar_p = update_W_bar_star(T, d, ud, Ex, Exx, Eomega_p, Ezp)
+    diff_list, W_bar_p_old = get_diff( W_bar_p, W_bar_p_old, diff_list)
+    Wp, Up, bp = extract_W_weights(W_bar_p,  d, ud)
+    bp = bp.reshape(d,1)
+    
+    
+    #Update Wo
+    W_bar_o = update_W_bar_star(T, d, ud, Ex, Exx, Eomega_o, Ezo)
+    diff_list, W_bar_o_old = get_diff( W_bar_o, W_bar_o_old, diff_list)
+    Wo, Uo, bo = extract_W_weights(W_bar_o,  d, ud)
+    bo = bo.reshape(d,1)
+    
     #convergence check
     diff = np.amax( diff_list )
     diff_vec.append(diff)
-    
-    
+    print('diff:', diff)
+    print('argmax_diff:',np.argmax(diff_list))
     
     k+=1
-    print(k)
+    print('iteration:',k)
 
 
+Ex_y, Exx_y = get_Ex_Exx(T, d, ud, Eh, Ehh, u)
+W_bar_y = update_W_bar_y(T, d, ud, yd, y, Ex_y, Exx_y)
 
-
-def get_Ehmin_Ehhmin(T, d, Eh, Ehh, h_0):
-    #Construct Eh_min_1
-    Eh_min = np.zeros((T,d,1))
-    Eh_min[0,:,:] += h_0
-    Eh_min[1:,:,:] += Eh[:-1,:,:]
-
-    #Construct Eh_min_1_h_min_1.T
-    Ehh_min = np.zeros((T,d,d))
-    h0h0T = np.outer(h_0.reshape(d), h_0.reshape(d))
-    Ehh_min[0,:,:] += h0h0T
-    Ehh_min[1:,:,:] += Ehh[:-1,:,:]
+def update_Sigma_y(T, yd, y, W_bar, Ex, Exx):
+    A = np.zeros((T, yd, yd))
+    A += (y[...,None]*y[:,None,:]).reshape(T,yd,yd)
+    WEx = W_bar @ Ex
+    WExyT = (WEx[...,None]*y[:,None,:]).reshape(T,yd,yd)
+    A += -WExyT-WExyT.transpose(0,2,1)
+    A += W_bar @ Exx @ W_bar.T
+    print('A')
+    print(A)
     
-    return Eh_min, Ehh_min
-
-def update_W_bar_star(T, d, Ex, Exx, Eomega_star, Ez_star):
-    W_bar = np.zeros((d,d))
-    
-    for i in range(0,d):
-        om_Exx = Eomega_star[:,i,:].reshape(T,1,1)*Exx
-        sum_omExx = np.sum(om_Exx, axis = 0)
-        
-
-    return
-
-Eh_min, Ehh_min = get_Ehmin_Ehhmin(T, d, Eh, Ehh, h_0)
-
-Ex, Exx = get_Ex_Exx(T, d, ud, Eh_min, Ehh_min, u)
-
-print('Eomega')
-print(Eomega_i)
-print(' ')
-print(np.round(Exx,6))
-update_W_bar_star(T, d, Ex, Exx, Eomega_i, Ezi)
+    return (1/T)*np.sum(A, axis=0)
 
 
-sys.exit('end')    
+Sigma_y = update_Sigma_y(T, yd, y, W_bar_y, Ex_y, Exx_y)
 
+print('Sigma_y')
+print(Sigma_y)
 
-
-
-
-
-
+sys.exit('end')
 
 
 print('Ec:')
-print(Ec)
+print(np.round(Ec,4))
 
 '''
 print('Ec prior:')
@@ -801,11 +843,11 @@ print(Ezf*Ec_mod+Ezi*(2*Ezp-1))
 print(' ')
 '''
 print('Ecc:')
-print(Ecc)
+print(np.round(Ecc,4))
 print('Sigma_c')
-print(Sigma_c)
+print(np.round(Sigma_c,4))
 print(' ')
-print('Eh:',Eh)
+print('Eh:',np.round(Eh,4))
 
 ''' 
 print('Eh prior:')
@@ -814,25 +856,25 @@ print(Ezo*(2*Ev-1))
 
 print(' ')
 print('Ehh')
-print(Ehh)
+print(np.round(Ehh,4))
 
 print('Sigma_h:')
-print(Sigma_h)
+print(np.round(Sigma_h,4))
 print(' ')
 print('Ev:')
-print(Ev)
+print(np.round(Ev,4))
 '''
 print('Ev prior:')
 print(expit(2*Ec))
 '''
 print(' ')
 print('E_gamma:')
-print(E_gamma)
+print(np.round(E_gamma,4))
 print('gg:')
-print(g_gamma)  
+print(np.round(g_gamma,4))  
 print(' ')
 print('Ezi')
-print(Ezi)
+print(np.round(Ezi,4))
 
 '''
 Eh_mod = np.zeros(T)
@@ -844,7 +886,7 @@ print(expit(Wi*Eh_mod+Ui*u+bi))
 
 print(' ')
 print('Ezf')
-print(Ezf)
+print(np.round(Ezf,4))
 '''
 print('Ezf prior:')
 print(expit(Wf*Eh_mod+Uf*u+bf))
@@ -852,37 +894,56 @@ print(expit(Wf*Eh_mod+Uf*u+bf))
 print(' ')
 
 print('Ezp')
-print(Ezp)
+print(np.round(Ezp,4))
 '''
 print('Ezp prior:')
 print(expit(Wp*Eh_mod+Up*u+bp))
 '''
 print(' ')
 print('Ezo')
-print(Ezo)
+print(np.round(Ezo,4))
 '''
 print('Ezo prior:')
 print(expit(Wo*Eh_mod+Uo*u+bo))
 '''
 print(' ')
 print('E_omega_i:')
-print(Eomega_i)
+print(np.round(Eomega_i,4))
 print('E_omega_f:')
-print(Eomega_f)
+print(np.round(Eomega_f,4))
 print('E_omega_p:')
-print(Eomega_p)
+print(np.round(Eomega_p,4))
 print('E_omega_o:')
-print(Eomega_o)
+print(np.round(Eomega_o,4))
 print('gi')
-print( gi)
+print( np.round(gi,d))
 print('gf')
-print( gf)
+print( np.round(gf,4))
 print('gp')
-print( gp)
+print( np.round(gp,4))
 print('go')
-print( go)
+print( np.round(go,4))
 
+'''
+print('Wbary')
+print(np.round(W_bar_y,3))
+
+print('Wbar_i')
+print(np.round(W_bar_i,3))
+
+print('Wbar_f')
+print(np.round(W_bar_f,3))
+
+print('Wbar_p')
+print(np.round(W_bar_p,3))
+
+print('Wbar_o')
+print(np.round(W_bar_o,3))
+'''
 print('elbo:', elbo)
+
+
+print('random_seed:',seed)
 
 
 
