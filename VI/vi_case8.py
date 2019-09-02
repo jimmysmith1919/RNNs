@@ -425,16 +425,66 @@ def get_elbo(T, d, yd,  c_0, inv_covar_c, h_0, inv_covar_h,
 
     elbo += entropy_PG_vec(qdf, x, 'PG')
     return elbo
-
+############################################################################
 def get_diff(param, param_old, diff_list):
     param_diff = np.amax(np.absolute(param-param_old))
     diff_list.append(param_diff)
     param_old = param
     return diff_list, param_old
+###########################################################################
+#parameter updates
 
+def get_Ex_Exx(T, d, ud, Eh, Ehh, u):
+    ones = np.ones((T,1,1))
+    
+    #Construct Ex
+    Ex = np.concatenate((Eh, u, ones), axis =1)
+    
+    #Construct Exx
+    Exx = np.zeros((T,d+ud+1, d+ud+1))
+    Exx[:,:d,:d] += Ehh
+    
+    EhuT = (Eh[...,None]*u[:,None,:]).reshape(T,d,ud)
+    Exx[:,:d,d:-1] += EhuT
+    Exx[:,d:-1,:d] += EhuT.transpose(0,2,1)
+    
+    uuT = (u[...,None]*u[:,None,:]).reshape(T,ud,ud)
+    Exx[:,d:d+ud, d:d+ud] += uuT
+    
+    Exx[:,:d,-1] += Eh.reshape(T,d)
+    Exx[:,-1,:d] += Eh.reshape(T,d)
+
+    Exx[:,d:d+ud,-1] += u.reshape(T,ud)
+    Exx[:,-1,d:d+ud] += u.reshape(T,ud)
+    
+    Exx[:,-1,-1] += 1
+    return Ex, Exx
+
+
+def update_W_bar_y(T, d, ud, yd, y, Ex, Exx):
+    
+    sumExx = np.sum(Exx, axis = 0)
+    
+    #Construct yExT
+    yExT  = (y[...,None]*Ex[:,None,:]).reshape(T,yd,d+ud+1)
+    sumyExT = np.sum(yExT, axis=0)
+   
+    return sumyExT @ np.linalg.inv(sumExx)
+
+
+def extract_W_weights(W_bar, d, ud):
+    W = W_bar[:,:d]
+    U = W_bar[:,d:d+ud]
+    b = W_bar[:,-1]
+    return W, U, b
+
+
+
+
+#########################################################################
 #####
-seed = np.random.randint(0,10000)
-#seed = 0
+#seed = np.random.randint(0,10000)
+seed = 0
 np.random.seed(seed)
 print('random_seed:',seed)
 
@@ -442,18 +492,18 @@ print('random_seed:',seed)
 L = 10 #end of intergation interval
 h = .01 #grid spacing
 
-T=20
-d = 5
-ud = 3
-yd = 1
+T=5
+d = 4 
+ud = 2
+yd = 3
 
 var_c = .2
-mu_c0 = 0
+mu_c0 = .1
 inv_covar_c = 1/var_c*np.ones((d,1))
 c_0 = mu_c0*np.ones((d,1))
 
 var_h = .3
-mu_h0 = 0
+mu_h0 = .3
 inv_covar_h = 1/var_h*np.ones((d,1))
 h_0 = mu_h0*np.ones((d,1))
 
@@ -563,7 +613,7 @@ gi_old = np.ones((T,d,1))*np.inf
 gf_old = np.ones((T,d,1))*np.inf
 gp_old = np.ones((T,d,1))*np.inf
 go_old = np.ones((T,d,1))*np.inf
-
+W_bar_y_old = np.ones((yd, d+ud+1))
 
 
 diff = np.inf
@@ -576,7 +626,8 @@ k_vec = []
 k = 0
 
 
-while diff > tol:
+#while diff > tol:
+for k in range(0,1):
     diff_list = []
 
     #update qc
@@ -654,11 +705,7 @@ while diff > tol:
     Ezo = update_zo(h_0, inv_covar_h, Wo, Uo, bo, u, Eh, Ev)
     diff_list, Ezo_old = get_diff( Ezo, Ezo_old, diff_list)
 
-
-    #convergence check
-    diff = np.amax( diff_list )
-    diff_vec.append(diff)
-    
+    ###Elbo Calculation######
     if k % 1 ==0:
     
         elbo = get_elbo(T, d, yd, c_0, inv_covar_c, h_0, inv_covar_h, 
@@ -673,9 +720,71 @@ while diff > tol:
         elbo_vec.append(elbo)
         k_vec.append(k)
         print(' ')
+    ########################
+    
+    #Update Wy
+        
+    Ex_y, Exx_y = get_Ex_Exx(T, d, ud, Eh, Ehh, u)
+    W_bar_y = update_W_bar_y(T, d, ud, yd, y, Ex_y, Exx_y)
+    diff_list, W_bar_y_old = get_diff( W_bar_y, W_bar_y_old, diff_list)
+    Wy, Uy, by = extract_W_weights(W_bar_y,  d, ud)
+    by = by.reshape(yd,1)
+    
+
+
+    #convergence check
+    diff = np.amax( diff_list )
+    diff_vec.append(diff)
+    
+    
     
     k+=1
     print(k)
+
+
+
+
+def get_Ehmin_Ehhmin(T, d, Eh, Ehh, h_0):
+    #Construct Eh_min_1
+    Eh_min = np.zeros((T,d,1))
+    Eh_min[0,:,:] += h_0
+    Eh_min[1:,:,:] += Eh[:-1,:,:]
+
+    #Construct Eh_min_1_h_min_1.T
+    Ehh_min = np.zeros((T,d,d))
+    h0h0T = np.outer(h_0.reshape(d), h_0.reshape(d))
+    Ehh_min[0,:,:] += h0h0T
+    Ehh_min[1:,:,:] += Ehh[:-1,:,:]
+    
+    return Eh_min, Ehh_min
+
+def update_W_bar_star(T, d, Ex, Exx, Eomega_star, Ez_star):
+    W_bar = np.zeros((d,d))
+    
+    for i in range(0,d):
+        om_Exx = Eomega_star[:,i,:].reshape(T,1,1)*Exx
+        sum_omExx = np.sum(om_Exx, axis = 0)
+        
+
+    return
+
+Eh_min, Ehh_min = get_Ehmin_Ehhmin(T, d, Eh, Ehh, h_0)
+
+Ex, Exx = get_Ex_Exx(T, d, ud, Eh_min, Ehh_min, u)
+
+print('Eomega')
+print(Eomega_i)
+print(' ')
+print(np.round(Exx,6))
+update_W_bar_star(T, d, Ex, Exx, Eomega_i, Ezi)
+
+
+sys.exit('end')    
+
+
+
+
+
 
 
 
