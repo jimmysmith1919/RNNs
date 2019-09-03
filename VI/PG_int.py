@@ -62,11 +62,11 @@ def qdf_log_pdf(omega, b, psi, c):
 
 
 def qdf_log_pdf_vec(omega, b, psi, c):
-    pdf = pgpdf(omega, b, psi, 10)
+    pdf = pgpdf(omega, b, psi, 5)
     with np.errstate(divide='ignore'):
         logpdf = np.log(pdf)
     logpdf = np.nan_to_num(logpdf,copy=False)
-    qdf = pgpdf(omega,b,c,10)
+    qdf = pgpdf(omega,b,c,5)
     return qdf*logpdf, qdf
 
 

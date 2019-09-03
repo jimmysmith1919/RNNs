@@ -5,36 +5,49 @@ import matplotlib.pyplot as plt
 from PG_int import qdf_log_pdf, entropy_q, qdf_log_pdf_vec, entropy_q_vec
 from scipy import integrate
 
-def generate(T, mu_0, covar_c, h_0, covar_h, 
-             Wi, Wf, Wp, Wo, Ui, Uf, Up, Uo, bi, bf, bp, bo, u):
-    c = np.zeros(T)
-    h = np.zeros(T)
-    v = np.zeros(T)
-    zi = np.zeros(T)
-    zf = np.zeros(T)
-    zp = np.zeros(T)
-    zo = np.zeros(T)
+def generate(T,d, yd, u, c0, Sigma_c, h0, Sigma_h, Sigma_y,
+             Wy, Wi, Wf, Wp, Wo, 
+             Uy, Ui, Uf, Up, Uo, 
+             by, bi, bf, bp, bo):
+    cg = np.zeros((T,d))
+    hg = np.zeros((T,d))
+    v = np.zeros((T,d))
+    zi = np.zeros((T,d))
+    zf = np.zeros((T,d))
+    zp = np.zeros((T,d))
+    zo = np.zeros((T,d))
+    yg = np.zeros((T,yd))
 
-    zi[0] = np.random.binomial(1, expit(Wi*h_0+Ui*u[0]+bi))
-    zf[0] = np.random.binomial(1, expit(Wf*h_0+Uf*u[0]+bf))
-    zp[0] = np.random.binomial(1, expit(Wp*h_0+Up*u[0]+bp))
-    zo[0] = np.random.binomial(1, expit(Wo*h_0+Uo*u[0]+bo))
+    
 
-    c[0] = np.random.normal(zf[0]*mu_0+zi[0]*(2*zp[0]-1),
-                            np.sqrt(covar_c[0,0]))
-    v[0] = np.random.binomial(1,  expit(c[0]))
-    h[0] = np.random.normal(zo[0]*(2*v[0]-1), np.sqrt(covar_h[0,0])) 
+    zi[0,:] = np.random.binomial(1, expit(Wi @ h0 + Ui @ u[0,:] + bi))
+    zf[0,:] = np.random.binomial(1, expit(Wf @ h0 + Uf @ u[0,:] + bf))
+    zp[0,:] = np.random.binomial(1, expit(Wp @ h0 + Up @ u[0,:] + bp))
+    zo[0,:] = np.random.binomial(1, expit(Wo @ h0 + Uo @ u[0,:] + bo))
+
+
+    cg[0,:] = np.random.normal(zf[0,:]*c0+zi[0,:]*(2*zp[0,:]-1),
+                            np.sqrt(Sigma_c))
+
+    
+    v[0,:] = np.random.binomial(1,  expit(2*cg[0,:]))
+    hg[0,:] = np.random.normal(zo[0,:]*(2*v[0,:]-1), np.sqrt(Sigma_h)) 
+    yg[0,:] = np.random.multivariate_normal(Wy @ hg[0,:] + Uy @ u[0,:] + by,
+                                           Sigma_y)
     for t in range(1,T):
-        zi[t] = np.random.binomial(1, expit(Wi*h[t-1]+Ui*u[t]+bi))
-        zf[t] = np.random.binomial(1, expit(Wf*h[t-1]+Uf*u[t]+bf))
-        zp[t] = np.random.binomial(1, expit(Wp*h[t-1]+Up*u[t]+bp))
-        zo[t] = np.random.binomial(1, expit(Wo*h[t-1]+Uo*u[t]+bo))
-        c[t] = np.random.normal(zf[t]*c[t-1]+zi[t]*(2*zp[t]-1),
-                                np.sqrt(covar_c[t,t]))
-        v[t] = np.random.binomial(1,  expit(c[t]))
-        h[t] = np.random.normal(zo[t]*(2*v[t]-1), 
-                                np.sqrt(covar_h[t,t])) 
-    return c, h, v, zi, zf, zp, zo
+        zi[t,:] = np.random.binomial(1, expit(Wi @ hg[t-1,:]+Ui @ u[t,:]+bi))
+        zf[t,:] = np.random.binomial(1, expit(Wf @ hg[t-1,:]+Uf @ u[t,:]+bf))
+        zp[t,:] = np.random.binomial(1, expit(Wp @ hg[t-1,:]+Up @ u[t,:]+bp))
+        zo[t,:] = np.random.binomial(1, expit(Wo @ hg[t-1,:]+Uo @ u[t,:]+bo))
+        cg[t,:] = np.random.normal(zf[t,:]*cg[t-1,:]+zi[t,:]*(2*zp[t,:]-1),
+                                   np.sqrt(Sigma_c))
+        v[t,:] = np.random.binomial(1,  expit(2*cg[t,:]))
+        hg[t,:] = np.random.normal(zo[t,:]*(2*v[t,:]-1), 
+                                   np.sqrt(Sigma_h)) 
+        yg[t,:] = np.random.multivariate_normal(Wy @ hg[t,:] + 
+                                               Uy @ u[t,:] + by,
+                                               Sigma_y)
+    return yg, cg, hg, v, zi, zf, zp, zo
 
 ####update c ########################################################
 def to_dxT(d,T, x):
@@ -520,61 +533,61 @@ def extract_W_weights(W_bar, d, ud):
 
 #########################################################################
 #####
-seed = np.random.randint(0,10000)
-#seed = 63#4687#  8604
+#seed = np.random.randint(0,10000)
+seed = 9765#4687#  8604
 np.random.seed(seed)
 print('random_seed:',seed)
 
 #elbo integration parameters
 L = 10 #end of intergation interval
-h = .001 #grid spacing
+h = .01 #grid spacing
+div = 1000 #how often to compute elbo
 
 
-tol = .01 #paremeter difference tolerance
-div = 400 #how often to compute elbo
-T=10
-d = 3 
-ud = 2
-yd = 1
+tol = .01 #convergence check
 
+##### Data ######
+#u = np.random.uniform(-1,1, size=(T, ud, 1))
+#y = np.random.uniform(-1,1, size = (T, yd,1))
+
+####Sine Wave####
+end = 10
+t = np.arange(0, end, .01)
+data = np.sin(2*t)
+
+ud = 1 #u dimension
+yd = 1 #y dimension
+
+T=len(data)-1
+
+u = data[:-1].reshape(T,ud,1)
+y = data[1:].reshape(T,yd,1)
+################
+
+
+#Hyperparameters
+d = 10 #dimension of h and c
 var_c = .2
-mu_c0 = .1
+var_h = .2
+
+
+#Initialize c 
 inv_covar_c = 1/var_c*np.ones((d,1))
+Sig_c = 1/inv_covar_c
+mu_c0 = 0
 c_0 = mu_c0*np.ones((d,1))
 
-var_h = .3
-mu_h0 = .3
+#Initialize h
 inv_covar_h = 1/var_h*np.ones((d,1))
+Sig_h = 1/inv_covar_h
+mu_h0 = 0
 h_0 = mu_h0*np.ones((d,1))
 
-u = np.random.uniform(-1,1, size=(T, ud, 1))
 
-var_y = .4
+#Initialize Parameters
+var_y = np.random.uniform(.001,.5)
 Sigma_y = var_y*np.identity(yd)
 inv_covar_y = 1/var_y*np.identity(yd)
-y = np.random.uniform(-1,1, size = (T, yd,1))
-
-print('y')
-print(y)
-print('u')
-print(u)
-
-'''
-Wi = .1*np.ones((d,d)) 
-Wf = .2*np.ones((d,d)) 
-Wp = .3*np.ones((d,d)) 
-Wo = -.4*np.ones((d,d))
-
-Ui = .4*np.ones((d,ud))
-Uf = .3*np.ones((d,ud)) 
-Up = -.2*np.ones((d,ud)) 
-Uo = .1*np.ones((d,ud)) 
-
-bi = -.3*np.ones((d,1)) 
-bf = .5*np.ones((d,1)) 
-bp = .7*np.ones((d,1)) 
-bo = .6*np.ones((d,1)) 
-'''
 
 Wi = np.random.uniform(-1,1, size=(d,d))
 Wf = np.random.uniform(-1,1, size=(d,d))
@@ -594,27 +607,6 @@ bp = np.random.uniform(-1,1, size=(d,1))
 bo = np.random.uniform(-1,1, size=(d,1))
 by = np.random.uniform(-1,1, size=(yd,1))
 
-
-'''     
-#c,h,v,zi,zf,zp,zo = generate(T, mu_0, covar_c, h_0, 
- #                         covar_h, Wi, Wf, Wp, Wo, 
-  #                         Ui, Uf, Up, Uo, bi, bf, bp, bo, u)
-
-print('Mu_0=',mu_0)
-print('covar_c=')
-print(covar_c)
-print('c:', c)
-print('Sigmoid(c):', expit(c))
-print('v:', v)
-print('h_0:', h_0)
-print('h:', h)
-print('zi',zi)
-print('zf', zf)
-print('zp', zp)
-print('zo', zo)
-print(' ')
-'''
-
 #Initialize
 E_gamma = np.random.uniform(0,1, size=(T,d,1))
 Ev = np.random.uniform(0,1, size=(T,d,1))
@@ -627,18 +619,7 @@ Eomega_f = np.random.uniform(0,1, size=(T,d,1))
 Eomega_p = np.random.uniform(0,1, size=(T,d,1))
 Eomega_o = np.random.uniform(0,1, size=(T,d,1))
 
-'''
-E_gamma = .3*np.ones((T,d,1))
-Ev = .5*np.ones((T,d,1))
-Ezi = .5*np.ones((T,d,1))
-Ezf = .5*np.ones((T,d,1))
-Ezp = .5*np.ones((T,d,1))
-Ezo = .5*np.ones((T,d,1))
-Eomega_i = .5*np.ones((T,d,1))
-Eomega_f = .5*np.ones((T,d,1))
-Eomega_p = .5*np.ones((T,d,1))
-Eomega_o = .5*np.ones((T,d,1))
-'''
+
 
 Ec_old = np.ones((T,d,1))*np.inf
 Ecc_old = np.ones((d,T,T))*np.inf
@@ -984,3 +965,35 @@ plt.close()
 
 
 
+#Generate
+
+y_gen, c_gen, h_gen, v, zi, zf, zp, zo = generate(T,d, yd, u.reshape(T,ud), 
+                                         c_0.reshape(d), Sig_c.reshape(d), 
+                                         h_0.reshape(d), Sig_h.reshape(d), 
+                                         Sigma_y,
+                                         Wy, Wi, Wf, Wp, Wo, 
+                                         Uy, Ui, Uf, Up, Uo, 
+                                         by.reshape(yd), bi.reshape(d), 
+                                         bf.reshape(d), bp.reshape(d), 
+                                         bo.reshape(d))
+plt.plot(t[1:],y.reshape(T))
+plt.plot(t[1:],y_gen.reshape(T))
+plt.show()
+
+'''print('y')
+print(y_gen)
+print('c')
+print(c_gen)
+print('h')
+print(h_gen)
+print('v')
+print(v)
+print('zi')
+print(zi)
+print('zf')
+print(zf)
+print('zp')
+print(zp)
+print('zo')
+print(zo)
+'''
