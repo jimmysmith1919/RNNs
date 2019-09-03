@@ -114,8 +114,7 @@ def update_qh(T,d,h_0, inv_covar, inv_covar_y, y, Wi, Wf, Wp, Wo, Wy,
     #Lambda shape (T,d,d)
     Lambda = np.zeros((T,d,d))
     
-    
-    Lambda += Wy.T @ (inv_covar_y*Wy)
+    Lambda += Wy.T @ inv_covar_y @ Wy
     Lambda += inv_covar*np.identity(d)
     
     for t in range(0,T-1):
@@ -124,11 +123,9 @@ def update_qh(T,d,h_0, inv_covar, inv_covar_y, y, Wi, Wf, Wp, Wo, Wy,
         Lambda[t,:,:] += Lambda_h_op(t, d, Eomega_p, Wp)
         Lambda[t,:,:] += Lambda_h_op(t, d, Eomega_o, Wo)
 
-
-
     #Lambda_m shape = (T,d,1)
     Lambda_m = np.zeros((T,d,1))
-    Lambda_m += (inv_covar_y*Wy).T @ (y-(Uy @ u + by))
+    Lambda_m += (inv_covar_y @ Wy).T @ (y-(Uy @ u + by))
     
     Lambda_m += inv_covar * ( Ezo*(2*Ev-1) )
     Lambda_m[:-1,:,:] += Lambda_h_m_op(Ezi, Eomega_i, Wi, Ui, bi, u)
@@ -268,28 +265,31 @@ def elbo_h(T,d,h_0, inv_covar, Eh, Ehh_diags, Ezo, Ev):
     print('elbo_h:', value)
     return value
 
-def elbo_y(T, yd, y, inv_covar_y, u, Uy, by, Eh, Ehh):
+
+def elbo_y(T, yd, y, inv_covar_y, Sigma_y, u, Uy, by, Eh, Ehh):
     value = np.zeros((T,1))
-    value += -1/2*np.sum(y*inv_covar_y*y,axis=1)
+    
+    value += -1/2*(y.transpose(0,2,1) @ inv_covar_y @ y).reshape(T,1)
     
     Uu_plus_b = Uy @ u + by
     
-    value += np.sum(y*(inv_covar_y*(Wy @ Eh + Uu_plus_b)),axis=1)
+    value += (y.transpose(0,2,1) @ inv_covar_y @ (Wy @ Eh 
+                                                  + Uu_plus_b)).reshape(T,1)
     
-    value += -1/2*np.trace(Wy.T @ (inv_covar_y*Wy) @ Ehh, 
+    value += -1/2*np.trace(Wy.T @ inv_covar_y @ Wy @ Ehh, 
                            axis1=1, axis2 =2).reshape(T,1)
 
-    value += -np.sum(Uu_plus_b*((inv_covar_y*Wy) @ Eh), axis=1) 
+    value += -(Uu_plus_b.transpose(0,2,1) @ inv_covar_y 
+               @ Wy @ Eh).reshape(T,1) 
 
-    value += -1/2*np.sum(Uu_plus_b*(inv_covar_y*Uu_plus_b), axis=1)
+    value += -1/2*( Uu_plus_b.transpose(0,2,1) @ inv_covar_y 
+                    @ Uu_plus_b).reshape(T,1)
 
-    log_term = T*(-yd/2*np.log(2*np.pi)-1/2*np.sum(
-            np.log((1/inv_covar_y)) ) )
+    log_term = T*(-yd/2*np.log(2*np.pi)-1/2*np.log(np.linalg.det(Sigma_y)) )
     value = np.sum(value)+log_term
     
     print('elbo_y:', value)
     return value
-    
 
 
 def elbo_z_star(T,d,Ez,Eh, h_0, W_star, U_star, b_star, u, star):
@@ -385,7 +385,7 @@ def entropy_PG_vec(qdf,x,str):
 
 
 def get_elbo(T, d, yd,  c_0, inv_covar_c, h_0, inv_covar_h, 
-             Wi, Wf, Wp, Wo, y, inv_covar_y,
+             Wi, Wf, Wp, Wo, y, inv_covar_y, Sigma_y,
              Ui, Uf, Up, Uo, Uy, u,
              bi, bf, bp, bo, by,
              Ec, Ecc_diags, Ecc_off_diags, Sigma_c, 
@@ -394,7 +394,7 @@ def get_elbo(T, d, yd,  c_0, inv_covar_c, h_0, inv_covar_h,
              Eomega_i, Eomega_f, Eomega_p, Eomega_o, 
              gi, gf, gp , go, L, h):
 
-    elbo = elbo_y(T, yd, y, inv_covar_y, u, Uy, by, Eh, Ehh)
+    elbo = elbo_y(T, yd, y, inv_covar_y, Sigma_y, u, Uy, by, Eh, Ehh)
     elbo += elbo_c(T, d, c_0, inv_covar_c, 
                   Ec, Ecc_diags, Ecc_off_diags)
     elbo += elbo_v(T, d, Ev, Ec)
@@ -474,6 +474,15 @@ def update_W_bar_y(T, d, ud, yd, y, Ex, Exx):
    
     return sumyExT @ np.linalg.inv(sumExx)
 
+def update_Sigma_y(T, yd, y, W_bar, Ex, Exx):
+    A = np.zeros((T, yd, yd))
+    A += (y[...,None]*y[:,None,:]).reshape(T,yd,yd)
+    WEx = W_bar @ Ex
+    WExyT = (WEx[...,None]*y[:,None,:]).reshape(T,yd,yd)
+    A += -WExyT-WExyT.transpose(0,2,1)
+    A += W_bar @ Exx @ W_bar.T
+    return (1/T)*np.sum(A, axis=0)
+
 def get_Ehmin_Ehhmin(T, d, Eh, Ehh, h_0):
     #Construct Eh_min_1
     Eh_min = np.zeros((T,d,1))
@@ -511,17 +520,20 @@ def extract_W_weights(W_bar, d, ud):
 
 #########################################################################
 #####
-#seed = np.random.randint(0,10000)
-seed = 0#8604
+seed = np.random.randint(0,10000)
+#seed = 63#4687#  8604
 np.random.seed(seed)
 print('random_seed:',seed)
 
 #elbo integration parameters
 L = 10 #end of intergation interval
-h = .01 #grid spacing
+h = .001 #grid spacing
 
-T=5
-d = 4 
+
+tol = .01 #paremeter difference tolerance
+div = 400 #how often to compute elbo
+T=10
+d = 3 
 ud = 2
 yd = 1
 
@@ -538,7 +550,8 @@ h_0 = mu_h0*np.ones((d,1))
 u = np.random.uniform(-1,1, size=(T, ud, 1))
 
 var_y = .4
-inv_covar_y = 1/var_y*np.ones((yd,1))
+Sigma_y = var_y*np.identity(yd)
+inv_covar_y = 1/var_y*np.identity(yd)
 y = np.random.uniform(-1,1, size = (T, yd,1))
 
 print('y')
@@ -642,23 +655,22 @@ gf_old = np.ones((T,d,1))*np.inf
 gp_old = np.ones((T,d,1))*np.inf
 go_old = np.ones((T,d,1))*np.inf
 W_bar_y_old = np.ones((yd, d+ud+1))*np.inf
+Sigma_y_old = np.ones((yd, yd))*np.inf
 W_bar_i_old = np.ones((d, d+ud+1))*np.inf
 W_bar_f_old = np.ones((d, d+ud+1))*np.inf
 W_bar_p_old = np.ones((d, d+ud+1))*np.inf
 W_bar_o_old = np.ones((d, d+ud+1))*np.inf
 
+
 diff = np.inf
-tol = .1
-
-
 diff_vec = []
 elbo_vec = []
 k_vec = []
 k = 0
 
 
-#while diff > tol:
-for k in range(0,1):
+while diff > tol:
+#for k in range(0,1):
     diff_list = []
 
     #update qc
@@ -735,12 +747,13 @@ for k in range(0,1):
     #update q_zo
     Ezo = update_zo(h_0, inv_covar_h, Wo, Uo, bo, u, Eh, Ev)
     diff_list, Ezo_old = get_diff( Ezo, Ezo_old, diff_list)
-
+    
+    
     ###Elbo Calculation######
-    if k % 1 ==0:
+    if k % div ==0:
     
         elbo = get_elbo(T, d, yd, c_0, inv_covar_c, h_0, inv_covar_h, 
-                        Wi, Wf, Wp, Wo, y, inv_covar_y,
+                        Wi, Wf, Wp, Wo, y, inv_covar_y, Sigma_y,
                         Ui, Uf, Up, Uo, Uy, u,
                         bi, bf, bp, bo, by,
                         Ec, Ecc_diags, Ecc_off_diags, Sigma_c, 
@@ -750,7 +763,8 @@ for k in range(0,1):
                         gi, gf, gp , go, L, h)
         elbo_vec.append(elbo)
         k_vec.append(k)
-        print(' ')
+        print('elbo:',elbo)
+    
     ########################
     
     #Update Wy
@@ -760,13 +774,20 @@ for k in range(0,1):
     diff_list, W_bar_y_old = get_diff( W_bar_y, W_bar_y_old, diff_list)
     Wy, Uy, by = extract_W_weights(W_bar_y,  d, ud)
     by = by.reshape(yd,1)
+
+    
+    #Update Sigma_y
+    Sigma_y = update_Sigma_y(T, yd, y, W_bar_y, Ex_y, Exx_y)
+    diff_list, Sigma_y_old = get_diff( Sigma_y, Sigma_y_old, diff_list)
+    inv_covar_y = np.linalg.inv(Sigma_y)
     
     
+   
     ###Update W_stars###
     Eh_min, Ehh_min = get_Ehmin_Ehhmin(T, d, Eh, Ehh, h_0)
     Ex, Exx = get_Ex_Exx(T, d, ud, Eh_min, Ehh_min, u)
     
-
+    
     
     #Update Wi
     
@@ -803,32 +824,26 @@ for k in range(0,1):
     print('diff:', diff)
     print('argmax_diff:',np.argmax(diff_list))
     
+
     k+=1
     print('iteration:',k)
+    print(' ')
 
 
-Ex_y, Exx_y = get_Ex_Exx(T, d, ud, Eh, Ehh, u)
-W_bar_y = update_W_bar_y(T, d, ud, yd, y, Ex_y, Exx_y)
 
-def update_Sigma_y(T, yd, y, W_bar, Ex, Exx):
-    A = np.zeros((T, yd, yd))
-    A += (y[...,None]*y[:,None,:]).reshape(T,yd,yd)
-    WEx = W_bar @ Ex
-    WExyT = (WEx[...,None]*y[:,None,:]).reshape(T,yd,yd)
-    A += -WExyT-WExyT.transpose(0,2,1)
-    A += W_bar @ Exx @ W_bar.T
-    print('A')
-    print(A)
-    
-    return (1/T)*np.sum(A, axis=0)
+elbo = get_elbo(T, d, yd, c_0, inv_covar_c, h_0, inv_covar_h, 
+                        Wi, Wf, Wp, Wo, y, inv_covar_y, Sigma_y,
+                        Ui, Uf, Up, Uo, Uy, u,
+                        bi, bf, bp, bo, by,
+                        Ec, Ecc_diags, Ecc_off_diags, Sigma_c, 
+                        Ev, Eh, Ehh_diags, Ehh, Sigma_h,
+                        Ezi, Ezf, Ezp, Ezo, E_gamma, g_gamma, 
+                        Eomega_i, Eomega_f, Eomega_p, Eomega_o, 
+                        gi, gf, gp , go, L, h)
+elbo_vec.append(elbo)
+k_vec.append(k)
+print('elbo:',elbo)
 
-
-Sigma_y = update_Sigma_y(T, yd, y, W_bar_y, Ex_y, Exx_y)
-
-print('Sigma_y')
-print(Sigma_y)
-
-sys.exit('end')
 
 
 print('Ec:')
@@ -923,6 +938,9 @@ print('gp')
 print( np.round(gp,4))
 print('go')
 print( np.round(go,4))
+
+print('Sigma_y')
+print(Sigma_y)
 
 '''
 print('Wbary')
