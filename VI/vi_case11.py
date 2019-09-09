@@ -24,7 +24,7 @@ def generate_sample(T,d, yd, u, c0, Sigma_c, h0, Sigma_h, Sigma_y,
 
     zi[0,:] = np.random.binomial(1, expit(Wi @ h0 + Ui @ u[0,:] + bi))
     zf[0,:] = np.random.binomial(1, expit(Wf @ h0 + Uf @ u[0,:] + bf))
-    zp[0,:] = np.random.binomial(1, expit(Wp @ h0 + Up @ u[0,:] + bp))
+    zp[0,:] = np.random.binomial(1, expit(2*(Wp @ h0 + Up @ u[0,:] + bp)))
     zo[0,:] = np.random.binomial(1, expit(Wo @ h0 + Uo @ u[0,:] + bo))
 
 
@@ -39,7 +39,8 @@ def generate_sample(T,d, yd, u, c0, Sigma_c, h0, Sigma_h, Sigma_y,
     for t in range(1,T):
         zi[t,:] = np.random.binomial(1, expit(Wi @ hg[t-1,:]+Ui @ u[t,:]+bi))
         zf[t,:] = np.random.binomial(1, expit(Wf @ hg[t-1,:]+Uf @ u[t,:]+bf))
-        zp[t,:] = np.random.binomial(1, expit(Wp @ hg[t-1,:]+Up @ u[t,:]+bp))
+        zp[t,:] = np.random.binomial(1, expit(2*(Wp @ hg[t-1,:]+
+                                                 Up @ u[t,:]+bp)))
         zo[t,:] = np.random.binomial(1, expit(Wo @ hg[t-1,:]+Uo @ u[t,:]+bo))
         cg[t,:] = np.random.normal(zf[t,:]*cg[t-1,:]+zi[t,:]*(2*zp[t,:]-1),
                                    np.sqrt(Sigma_c))
@@ -69,7 +70,7 @@ def generate(T,d, yd, u, c0, Sigma_c, h0, Sigma_h, Sigma_y,
 
     zi[0,:] = expit(Wi @ h0 + Ui @ u[0,:] + bi) 
     zf[0,:] = expit(Wf @ h0 + Uf @ u[0,:] + bf) 
-    zp[0,:] = expit(Wp @ h0 + Up @ u[0,:] + bp)
+    zp[0,:] = expit(2*(Wp @ h0 + Up @ u[0,:] + bp))
     zo[0,:] = expit(Wo @ h0 + Uo @ u[0,:] + bo) 
 
 
@@ -82,7 +83,7 @@ def generate(T,d, yd, u, c0, Sigma_c, h0, Sigma_h, Sigma_y,
     for t in range(1,T):
         zi[t,:] = expit(Wi @ hg[t-1,:]+Ui @ u[t,:]+bi)  
         zf[t,:] = expit(Wf @ hg[t-1,:]+Uf @ u[t,:]+bf)  
-        zp[t,:] = expit(Wp @ hg[t-1,:]+Up @ u[t,:]+bp) 
+        zp[t,:] = expit(2*(Wp @ hg[t-1,:]+Up @ u[t,:]+bp))
         zo[t,:] = expit(Wo @ hg[t-1,:]+Uo @ u[t,:]+bo) 
         cg[t,:] = zf[t,:]*cg[t-1,:]+zi[t,:]*(2*zp[t,:]-1) 
 
@@ -165,6 +166,13 @@ def Lambda_h_m_op( Ez_star, Eomega_star, W_star,
                            *(U_star @ u[1:,:,:]+b_star))
     return value
 
+def Lambda_h_mP_op( Ez_star, Eomega_star, W_star, 
+                  U_star, b_star, u):
+    value = 2*W_star.T @ (Ez_star[1:,:,:]-1/2)
+    value  += -4*W_star.T @ (Eomega_star[1:,:,:]
+                           *(U_star @ u[1:,:,:]+b_star))
+    return value
+
 
 def update_qh(T,d,h_0, inv_covar, inv_covar_y, y, Wi, Wf, Wp, Wo, Wy, 
               u, Ui, Uf, Up, Uo, Uy, bi, bf, bp, bo, by,
@@ -181,7 +189,7 @@ def update_qh(T,d,h_0, inv_covar, inv_covar_y, y, Wi, Wf, Wp, Wo, Wy,
     for t in range(0,T-1):
         Lambda[t,:,:] += Lambda_h_op(t, d, Eomega_i, Wi)
         Lambda[t,:,:] += Lambda_h_op(t, d, Eomega_f, Wf)
-        Lambda[t,:,:] += Lambda_h_op(t, d, Eomega_p, Wp)
+        Lambda[t,:,:] += 4*Lambda_h_op(t, d, Eomega_p, Wp)
         Lambda[t,:,:] += Lambda_h_op(t, d, Eomega_o, Wo)
 
     #Lambda_m shape = (T,d,1)
@@ -191,7 +199,7 @@ def update_qh(T,d,h_0, inv_covar, inv_covar_y, y, Wi, Wf, Wp, Wo, Wy,
     Lambda_m += inv_covar * ( Ezo*(2*Ev-1) )
     Lambda_m[:-1,:,:] += Lambda_h_m_op(Ezi, Eomega_i, Wi, Ui, bi, u)
     Lambda_m[:-1,:,:] += Lambda_h_m_op(Ezf, Eomega_f, Wf, Uf, bf, u)
-    Lambda_m[:-1,:,:] += Lambda_h_m_op(Ezp, Eomega_p, Wp, Up, bp, u)
+    Lambda_m[:-1,:,:] += Lambda_h_mP_op(Ezp, Eomega_p, Wp, Up, bp, u)
     Lambda_m[:-1,:,:] += Lambda_h_m_op(Ezo, Eomega_o, Wo, Uo, bo, u)
 
     
@@ -225,6 +233,28 @@ def update_q_omega_star(T,d,Eh, Ehh, h_0, W_star, U_star, b_star, u):
     g = np.sqrt(value)
     E_omega = 1/(2*g)*np.tanh(g/2)
     return g, E_omega
+
+def update_q_omega_P(T,d,Eh, Ehh, h_0, W_star, U_star, b_star, u):
+    value = np.zeros((T,d,1))
+        
+    for i in range(0,d):
+        wwT = np.outer(W_star[i,:], W_star[i,:])
+        tr_val = np.trace(wwT @ np.outer(h_0,h_0))
+        value[0,i,:] += tr_val
+        tr_val = np.trace(wwT @ Ehh[:-1,:,:], 
+                          axis1=1, axis2=2).reshape(T-1,1)
+        value[1:,i,:] += tr_val
+    
+    Uu_plus_b = U_star @ u + b_star
+    
+    value[0,:,:] += (2*W_star @ h_0)*Uu_plus_b[0,:,:]
+    value[1:,:,:] += (2*W_star @ Eh[:-1,:,:])*Uu_plus_b[1:,:,:]
+    
+    value += Uu_plus_b**2
+    g = np.sqrt(4*value)
+    E_omega = 1/(2*g)*np.tanh(g/2)
+    return g, E_omega
+
 ##############################################################
 
 def update_qv(Eh, inv_covar, Ec, Ezo):
@@ -272,7 +302,7 @@ def update_zp(c_0, inv_covar, Wp, Up, bp, u, h_0, Eh, Ec, Ezi, Ezf):
     value[0,:,:] += -2*inv_covar*Ezf[0,:,:]*c_0*Ezi[0,:,:]
     value[1:,:,:] += -2*inv_covar*Ezf[1:,:,:]*Ec[:-1,:,:]*Ezi[1:,:,:]
     
-    value = W_Eh_z_update(Wp, Up, bp, u, Eh, h_0, value)
+    value = W_Eh_z_update(2*Wp, 2*Up, 2*bp, u, Eh, h_0, value)
     
     return expit(value)
 
@@ -588,7 +618,7 @@ print('random_seed:',seed)
 
 #elbo integration parameters
 comp_elbo = False
-L = 10    #end of intergation interval
+L = 10    #end of integration interval
 h = .01   #grid spacing
 div = 60 #how often to compute elbo
 
@@ -635,12 +665,12 @@ y_test = data[stop:].reshape(T_test,yd,1)
 
 #Hyperparameters ##################################################3
 d =10     #dimension of h and c
-var_c = .01
-var_h = .01
+var_c = .3
+var_h = .3
 N = 1     #Number of Monte Carlo samples
-tol = .03 #convergence check
+tol = .01 #convergence check
 
-wfile = 'weights/LSTM_d10_eps10_lr0.001_end200_1567714051.980048.npy'
+
 
 #Initialize c 
 inv_covar_c = 1/var_c*np.ones((d,1))
@@ -662,7 +692,7 @@ var_y = np.random.uniform(.001,.5)
 Sigma_y = var_y*np.identity(yd)
 inv_covar_y = 1/var_y*np.identity(yd)
 
-'''
+
 Wi = np.random.uniform(-1,1, size=(d,d))
 Wf = np.random.uniform(-1,1, size=(d,d))
 Wp = np.random.uniform(-1,1, size=(d,d))
@@ -680,8 +710,9 @@ bf = np.random.uniform(-1,1, size=(d,1))
 bp = np.random.uniform(-1,1, size=(d,1))
 bo = np.random.uniform(-1,1, size=(d,1))
 by = np.random.uniform(-1,1, size=(yd,1))
-'''
 
+'''
+wfile = 'weights/LSTM_d10_eps10_lr0.001_end200_1567714051.980048.npy'
 weights = np.load(wfile)
 
 Ui = weights[0][0,:d].reshape(d,ud)   
@@ -702,7 +733,7 @@ bo = weights[2][3*d:4*d].reshape(d,1)
 Wy = weights[3].reshape(yd,d)                                                 
 by = weights[4].reshape(yd,1) 
 Uy = np.zeros((yd,ud))
-
+'''
 ##Need to change code!
 #Uy = np.random.uniform(-1,1, size=(yd,ud))
 
@@ -811,7 +842,7 @@ while diff > tol:
                                        Wf, Uf, bf, u)
     diff_list, gf_old = get_diff( gf, gf_old, diff_list)
 
-    gp, Eomega_p = update_q_omega_star(T,d,Eh, Ehh, h_0, 
+    gp, Eomega_p = update_q_omega_P(T,d,Eh, Ehh, h_0, 
                                        Wp, Up, bp, u)
     diff_list, gp_old = get_diff(gp, gp_old, diff_list)
 
@@ -857,7 +888,7 @@ while diff > tol:
             print('elbo:',elbo)
     
     ########################
-    '''
+    
     #Update Wy
         
     Ex_y, Exx_y = get_Ex_Exx(T, d, ud, Eh, Ehh, u)
@@ -898,7 +929,7 @@ while diff > tol:
     
     
     #Update Wp
-    W_bar_p = update_W_bar_star(T, d, ud, Ex, Exx, Eomega_p, Ezp)
+    W_bar_p = update_W_bar_star(T, d, ud, Ex, Exx, 2*Eomega_p, Ezp)
     diff_list, W_bar_p_old = get_diff( W_bar_p, W_bar_p_old, diff_list)
     Wp, Up, bp = extract_W_weights(W_bar_p,  d, ud)
     bp = bp.reshape(d,1)
@@ -909,7 +940,7 @@ while diff > tol:
     diff_list, W_bar_o_old = get_diff( W_bar_o, W_bar_o_old, diff_list)
     Wo, Uo, bo = extract_W_weights(W_bar_o,  d, ud)
     bo = bo.reshape(d,1)
-    '''
+    
     #convergence check
     diff = np.amax( diff_list )
     diff_vec.append(diff)
