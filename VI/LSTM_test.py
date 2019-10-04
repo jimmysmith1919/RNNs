@@ -4,6 +4,7 @@ from tensorflow.keras.layers import LSTM
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import Input
 from  tensorflow.keras.optimizers import Adam
+from scipy.special import expit
 import time
 import os
 
@@ -23,7 +24,8 @@ eps = 100
 
 
 model = Sequential()
-model.add(LSTM(d, recurrent_activation='sigmoid', batch_input_shape=(1,1,1), return_sequences=True, 
+model.add(LSTM(d, recurrent_activation='sigmoid', 
+               batch_input_shape=(1,1,1), return_sequences=True, 
                stateful = True))
 model.add(Dense(1) )
 model.compile(optimizer=Adam(lr=lr), loss='mse')
@@ -106,6 +108,21 @@ plt.close()
 
 
 
+    
+    
+
+trainPred = model.predict(u)
+testPred = []
+pred = trainPred[-1].reshape(1,1,1)
+for j in range(0,T_new):
+    pred= model.predict(pred)
+    testPred.append(pred.reshape(1))
+    pred = pred.reshape(1,1,1)                    
+
+r = np.arange(stop,stop+T_new, dt)
+plt.plot(r, testPred, label = '{}'.format(e))
+
+
 
 weights = model.get_weights()
 '''
@@ -127,10 +144,10 @@ Uf = weights[0][0,d:2*d]
 Up = weights[0][0,2*d:3*d]
 Uo = weights[0][0,3*d:4*d]
 
-Wi = weights[1][:,:d]
-Wf = weights[1][:,d:2*d]
-Wp = weights[1][:,2*d:3*d]
-Wo = weights[1][:,3*d:4*d]
+Wi = weights[1][:,:d].T
+Wf = weights[1][:,d:2*d].T
+Wp = weights[1][:,2*d:3*d].T
+Wo = weights[1][:,3*d:4*d].T
 
 bi = weights[2][:d]
 bf = weights[2][d:2*d]
@@ -147,8 +164,7 @@ np.save('weights/LSTM_d{}_eps{}_lr{}_end{}_{}'.format(d,eps,
 
 #create new model to reset h and c states
 model = Sequential()
-model.add(LSTM(d,recurrent_activation='sigmoid', batch_input_shape=(1,1,1), return_sequences=True, 
-               stateful = True))
+model.add(LSTM(d,recurrent_activation='sigmoid', batch_input_shape=(1,1,1), return_sequences=True, stateful = True))
 model.add(Dense(1) )
 model.compile(optimizer=Adam(lr=lr), loss='mse')
 
@@ -175,7 +191,7 @@ for j in range(0,T_new):
 
 
 r = np.arange(stop,stop+T_new, dt)
-plt.plot(r, testPred, 'r')
+plt.plot(r, testPred, 'r', label='new1')
 
 
 
@@ -213,28 +229,32 @@ h_vec = []
 c_vec = []
 
 y_vec = []
+input = np.zeros((1,1,1))
 for j in range(0,len(trainPred)):
+    #if j== 2:
+    #    break
+    print(j)
     _, h, c = model2.predict(u[j,:,:].reshape(1,1,1))
+    print('u')
+    #print(input)
+    print(u[j,:,:].reshape(1,1,1))
+    print('h')
+    print(h)
+    print('c')
+    print(c)
     h_vec.append(h)
     c_vec.append(c)
     y = model3.predict(h.reshape(1,1,d))
     y_vec.append(y.reshape(1))
 
-print('u')
-print(u[:10])
-print('h')
-print(h_vec[:10])
-print('c')
-print(c_vec[:10])
-print('y')
-print(y_vec[:10])
 
+'''
 plt.plot(t[1:stop], y_vec, 'm')
 
 
 
 
-#One step at a time generateing new data
+#One step at a time generating new data
 testPred = []
 pred = y_vec[-1].reshape(1,1,1)
 
@@ -246,10 +266,103 @@ for j in range(0,T_new):
 
 
 r = np.arange(stop,stop+T_new, dt)
-plt.plot(r, testPred, 'g')
+plt.plot(r, testPred, 'g', label='new2')
+'''
+
+#check LSTM
+def LSTM(c0, h0, u, Wi, Wf, Wp, Wo, Ui, Uf, Up, Uo, bi, bf, bp, bo, Wy, by):
+    i = expit(Wi @ h0 + Ui @ u + bi)
+    #print('Wih')
+    #print(Wi @ h0)
+    f = expit(Wf @ h0 + Uf @ u + bf)
+    p = np.tanh(Wp @ h0 + Up @ u + bp)
+    o = expit(Wo @ h0 + Uo @ u + bo)
+
+    c = f*c0 + i*p
+    h = o*np.tanh(c)
+    y = Wy @ h + by
+    return y,c,h,i,f,p,o
 
 
 
+
+
+Ui = Ui.reshape(d,ud)
+Uf = Uf.reshape(d,ud)
+Up = Up.reshape(d,ud)
+Uo = Uo.reshape(d,ud)
+
+print('W')
+print(Wi, Wf, Wp, Wo)
+
+print('U')
+print(Ui, Uf, Up, Uo)
+
+bi = bi.reshape(d,1)
+bf = bf.reshape(d,1)
+bp = bp.reshape(d,1)
+bo = bo.reshape(d,1)
+
+print('b')
+print(bi, bf, bp, bo)
+print(' ')
+
+print('u_check')
+print(u[1,:,:].reshape(1,1))
+print('h_check')
+print(h_vec[0].reshape(d,1))
+i_in = Wi @ h_vec[0].reshape(d,1) + Ui @ u[1,:,:].reshape(1,1)+bi
+f_in = Wf @ h_vec[0].reshape(d,1) + Uf @ u[1,:,:].reshape(1,1)+bf
+p_in = Wp @ h_vec[0].reshape(d,1) + Up @ u[1,:,:].reshape(1,1)+bp
+o_in = Wo @ h_vec[0].reshape(d,1) + Uo @ u[1,:,:].reshape(1,1)+bo
+print('i')
+print(i_in)
+print('f')
+print(f_in)
+print('p')
+print(p_in)
+print('o')
+print(o_in)
+
+print(' ')
+#Training data
+h = np.zeros((d,1))
+c = np.zeros((d,1))
+y_vec = []
+input = np.zeros((1,1))
+for j in range(0,len(trainPred)):
+    #y,c,h,i,_,_,_ = LSTM(c, h, input, Wi, Wf, Wp, Wo, 
+    #                     Ui, Uf, Up, Uo, bi, bf, bp, bo, Wy, by)
+    y,c,h,i,_,_,_ = LSTM(c, h, u[j,:,:].reshape(1,1), Wi, Wf, Wp, Wo, 
+                         Ui, Uf, Up, Uo, bi, bf, bp, bo, Wy, by)
+    #if j==2:
+    #    break
+    print(j)
+    print('i')
+    print(i)
+    print('u')
+    #print(input)
+    print(u[j,:,:].reshape(1,1))
+    print('h')
+    print(h)
+    print('c')
+    print(c)
+    y_vec.append(y.reshape(1))
+
+plt.plot(t[1:stop], y_vec, label='My_LSTM_train')
+
+
+testPred = []
+pred = y_vec[-1].reshape(1,1)
+for j in range(0,T_new):
+    pred,c,h,_,_,_,_ = LSTM(c, h, pred, Wi, Wf, Wp, Wo, 
+                         Ui, Uf, Up, Uo, bi, bf, bp, bo, Wy, by)
+    testPred.append(pred.reshape(1))           
+
+r = np.arange(stop,stop+T_new, dt)
+plt.plot(r, testPred, 'g', label='MY_LSTM_test')
+
+plt.legend()
 plt.savefig(path+'/d{}_{}_epchs{}.png'.format(d, timestamp,eps))
 plt.show()
 
