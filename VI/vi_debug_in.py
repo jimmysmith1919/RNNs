@@ -733,8 +733,8 @@ y_test = data[stop:].reshape(T_test,yd,1)
 
 #Hyperparameters ##################################################3
 d = 20     #dimension of h and c
-var_c = np.random.uniform(.01, .3)#.3
-var_h = np.random.uniform(.01, .3)#.3
+var_c = .01#np.random.uniform(.01, .3)#.3
+var_h = .01#np.random.uniform(.01, .3)#.3
 N = 1     #Number of Monte Carlo samples
 tol = .001 #convergence check
 print('var c:', var_c)
@@ -860,13 +860,15 @@ Ezf = Ezf.reshape(T,d,1)
 Ezp = Ezp.reshape(T,d,1) 
 Ezo = Ezo.reshape(T,d,1) 
 
-
+'''
 Sig_h = update_Sigma_H(T, d, Eh, Ehh_diags, Ezo, Ev)
 inv_covar_h = 1/Sig_h
-    
+ 
+
 Sig_c = update_Sigma_C(T,d, c_0, Ecc_diags, 
                        Ecc_off_diags, Ec, Ezi, Ezf, Ezp)
 inv_covar_c = 1/Sig_c
+'''
 
 W_bar_y = np.concatenate((Wy, by), axis =1)
 Ex_y, Exx_y = get_Ex_Exx_No_U(T, d, Eh, Ehh) 
@@ -1131,6 +1133,7 @@ while diff > tol:
     Sig_h = update_Sigma_H(T, d, Eh, Ehh_diags, Ezo, Ev)
     diff_list, Sig_h_old = get_diff( Sig_h, Sig_h_old, diff_list)
     inv_covar_h = 1/Sig_h
+    
     
     #Update Sig_c
     Sig_c = update_Sigma_C(T,d, c_0, Ecc_diags, 
@@ -1619,25 +1622,50 @@ for j in range(0,T_new):
 
 plt.plot(t[1:],y_full.reshape(T_full))
 plt.plot(t[1:stop],y_tr_vec.reshape(T))
-#plt.plot(t[stop:],y_test_vec.reshape(T_test))
-#plt.plot(t[stop:],y_test_vec2.reshape(T_test),'m')
-#plt.plot(t[1:],y.reshape(T_full))
-#plt.plot(t[1:],y_gen_vec.reshape(T_full))
-#plt.plot(t[1:],y_gen.reshape(T))
-#r1 = np.arange(t[1],end+T_new*dt, dt)
-#plt.plot(t[1:], y_tr_gen_vec)
-#plt.plot(r1, y_tr_gen_vec)
 
-'''
-r = np.arange(t[-1]+dt, t[-1]+dt+T_new*dt, dt)
-plt.plot(r, y_tr_gen_vec)
-'''
 
-#r = np.arange(t[stop]+dt, t[stop]+dt+T_new*dt, dt)
 r = np.arange(stop, stop+T_new,dt)
-#plt.plot(r,y_test_vec2.reshape(T_new),'m')
 plt.plot(r, y_tr_gen_vec, 'r')
 
+
+y_tr_gen_vec = np.zeros((stop+T_new,yd)) 
+h_arr = np.zeros((stop+T_new,d))
+c_arr= np.zeros((stop+T_new,d))
+
+'''
+#New test
+for j in range(0,stop+T_new):
+    if j ==0:
+        #y_tr_gen = y[-1,:,:].reshape(1,yd)
+        input = np.zeros(1).reshape(1,1)
+        ct =  np.zeros(d)
+        ht = np.zeros(d)
+        
+    else: 
+        #y_tr_gen = y_tr_gen_vec[j-1,:]
+        input = y_tr_gen_vec[j-1,:].reshape(1,yd)#np.zeros(1).reshape(1,1)
+        ct = c_arr[j-1,:]
+        ht = h_arr[j-1,:]
+        
+
+    y_tr_gen, ct, ht, _,_,_,_,_ = generate(1,d, yd, input, 
+                                         ct.reshape(d),  
+                                         ht.reshape(d),
+                                         Wy, Wi, Wf, Wp, Wo, 
+                                         Ui, Uf, Up, Uo, 
+                                         by.reshape(yd), bi.reshape(d), 
+                                         bf.reshape(d), bp.reshape(d), 
+                                         bo.reshape(d))
+    y_tr_gen_vec[j,:] += y_tr_gen.reshape(yd)
+    c_arr[j,:] = ct.reshape(d)
+    h_arr[j,:] = ht.reshape(d)
+    
+        
+     
+
+r = np.arange(0, stop+T_new,dt)
+plt.plot(r, y_tr_gen_vec, 'g')
+'''
 
 
 

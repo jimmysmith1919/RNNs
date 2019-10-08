@@ -123,7 +123,7 @@ def sample_c_post(T, d, Ec, Sigma_c):
                                                     Sigma_c[j,:,:])
     return post_c.reshape(T,d,1)
 
-
+'''
 def sample_pg(g,T,d):
     sample = np.zeros((T,d,1))
     for t in range(0,T):
@@ -132,6 +132,15 @@ def sample_pg(g,T,d):
             pg = PyPolyaGamma(seed)
             sample[t,j,:] = pg.pgdraw(1, g[t,j,:])
     return sample
+'''
+
+def sample_pg(g,T,d):
+    sample = np.empty(T*d)
+    pg = PyPolyaGamma(seed)
+    g1 = g.ravel()
+    pg.pgdrawv(np.ones(T*d), g1, sample)
+    return sample.reshape(T,d,1)
+
 
 ###############################################################
 def Lambda_h_op(t, d, Eomega_star, W_star):
@@ -209,6 +218,12 @@ def update_q_omega_star(T,d,Eh, Ehh, h_0, W_star, U_star, b_star, u):
     value[1:,:,:] += (2*W_star @ Eh[:-1,:,:])*Uu_plus_b[1:,:,:]
     
     value += Uu_plus_b**2
+    
+    check = value < np.zeros(value.shape)
+    count= np.sum(check)
+    if count >0:
+        value[np.nonzero(check)]=0
+    
     g = np.sqrt(value)
     return g
 
@@ -229,6 +244,12 @@ def update_q_omega_P(T,d,Eh, Ehh, h_0, W_star, U_star, b_star, u):
     value[1:,:,:] += (2*W_star @ Eh[:-1,:,:])*Uu_plus_b[1:,:,:]
     
     value += Uu_plus_b**2
+    
+    check = value < np.zeros(value.shape)
+    count= np.sum(check)
+    if count >0:
+        value[np.nonzero(check)]=0
+    
     g = np.sqrt(4*value)
     return g
 
@@ -615,13 +636,13 @@ zp = np.random.binomial(1, Ezp, size=(T,d,1))
 Ezo = Ezo.reshape(T,d,1) 
 zo = np.random.binomial(1, Ezo, size=(T,d,1))
 
-'''
+
 Sig_h = update_Sigma_H(T, d, h, hh_diags, zo, v)
 inv_covar_h = 1/Sig_h
 
 Sig_c = update_Sigma_C(T,d, c_0, cc, cc_off, c, zi, zf, zp)
 inv_covar_c = 1/Sig_c
-
+'''
 
 
 W_bar_y = np.concatenate((Wy, by), axis =1)
@@ -656,8 +677,8 @@ os.mkdir(path)
 
 
 
-while diff > tol:
-#for k in range(0,150):
+#while diff > tol:
+for k in range(0,100):
     diff_list = []
         
     #update q_gamma
@@ -668,12 +689,14 @@ while diff > tol:
     gi = update_q_omega_star(T, d, h, hh, h_0, Wi, Ui, bi, u)
     omega_i = sample_pg(gi,T,d)
 
+
     gf = update_q_omega_star(T,d, h, hh, h_0, Wf, Uf, bf, u)
     omega_f = sample_pg(gf,T,d)
 
     gp = update_q_omega_P(T,d, h, hh, h_0, Wp, Up, bp, u)
     omega_p = sample_pg(gp,T,d)
         
+
     go = update_q_omega_star(T,d, h, hh, h_0, Wo, Uo, bo, u)
     omega_o = sample_pg(go,T,d)
         
@@ -728,7 +751,7 @@ while diff > tol:
     hh = (h[...,None]*h[:,None,:]).reshape(T,d,d)
     hh_diags = h**2
         
-    '''    
+    '''
     ##### Update weights ####
     h_min, hh_min = get_Ehmin_Ehhmin(T, d, h, hh, h_0)
     x, xx = get_Ex_Exx(T, d, ud, h, hh, u)
@@ -764,7 +787,7 @@ while diff > tol:
     #Wo,  bo = extract_W_weights_No_U(W_bar_o,  d)                           
     Wo, Uo, bo = extract_W_weights(W_bar_o, d, ud)
     bo = bo.reshape(d,1)
-
+    '''
     
     #Update Sig_h                                                            
     Sig_h = update_Sigma_H(T, d, h, hh_diags, zo, v)
@@ -776,7 +799,7 @@ while diff > tol:
     diff_list, Sig_c_old = get_diff( Sig_c, Sig_c_old, diff_list)
     inv_covar_c = 1/Sig_c
 
-    
+    '''
     #Update Wy                                                               
     x_y, xx_y = get_Ex_Exx_No_U(T, d, h, hh)
     W_bar_y = update_W_bar_y(T, d, yd, y, x_y, xx_y)
@@ -793,15 +816,15 @@ while diff > tol:
 
     
     ########################
-    '''
+    
     #convergence check
     diff = np.amax( diff_list )
     diff_vec.append(diff)
     print('diff:', diff)
     print('argmax_diff:',np.argmax(diff_list))
-    '''
     
-    if k % 1 == 0:
+    
+    if k % 10 == 0:
         y_tr_vec = np.zeros((T,yd))
         y_gen, c_gen, h_gen, _, _, _, _, _ = generate(T,d, yd, 
                                          u.reshape(T,ud), 
