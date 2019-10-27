@@ -225,27 +225,43 @@ model3.set_weights(mod_weights2)
 
 
 #One step at a time on training data
-h_vec = []
-c_vec = []
+h_vec = np.zeros((len(trainPred),d))
+c_vec = np.zeros((len(trainPred),d))
 
 y_vec = []
 input = np.zeros((1,1,1))
 for j in range(0,len(trainPred)):
     #if j== 2:
     #    break
-    print(j)
     _, h, c = model2.predict(u[j,:,:].reshape(1,1,1))
-    print('u')
     #print(input)
-    print(u[j,:,:].reshape(1,1,1))
-    print('h')
-    print(h)
-    print('c')
-    print(c)
-    h_vec.append(h)
-    c_vec.append(c)
+    h_vec[j,:] = h
+    c_vec[j,:] = c
+    #h_vec.append(h)
+    #c_vec.append(c)
     y = model3.predict(h.reshape(1,1,d))
     y_vec.append(y.reshape(1))
+
+###Print Eh and h prior                                                     \
+'''                                                                             
+for j in range(0,d):
+    plt.plot(t[1:stop],h_vec[:,j], label = 'Prior')
+    #plt.savefig(path+'/h_compare_{}.png'.format(j))
+    plt.show()
+    plt.close()
+'''
+'''
+###Print Ec and c prior                                                     \
+plt.close()                
+                                                             
+for j in range(0,d):
+    plt.plot(t[1:stop],c_vec[:,j], label = 'Prior')
+    #plt.savefig(path+'/c_compare_{}.png'.format(j))
+    plt.legend()
+    plt.show()
+    plt.close()
+'''
+
 
 
 '''
@@ -292,40 +308,24 @@ Uf = Uf.reshape(d,ud)
 Up = Up.reshape(d,ud)
 Uo = Uo.reshape(d,ud)
 
-print('W')
-print(Wi, Wf, Wp, Wo)
 
-print('U')
-print(Ui, Uf, Up, Uo)
 
 bi = bi.reshape(d,1)
 bf = bf.reshape(d,1)
 bp = bp.reshape(d,1)
 bo = bo.reshape(d,1)
 
-print('b')
-print(bi, bf, bp, bo)
-print(' ')
 
-print('u_check')
-print(u[1,:,:].reshape(1,1))
-print('h_check')
-print(h_vec[0].reshape(d,1))
 i_in = Wi @ h_vec[0].reshape(d,1) + Ui @ u[1,:,:].reshape(1,1)+bi
 f_in = Wf @ h_vec[0].reshape(d,1) + Uf @ u[1,:,:].reshape(1,1)+bf
 p_in = Wp @ h_vec[0].reshape(d,1) + Up @ u[1,:,:].reshape(1,1)+bp
 o_in = Wo @ h_vec[0].reshape(d,1) + Uo @ u[1,:,:].reshape(1,1)+bo
-print('i')
-print(i_in)
-print('f')
-print(f_in)
-print('p')
-print(p_in)
-print('o')
-print(o_in)
+
 
 print(' ')
 #Training data
+h_vec = np.zeros((len(trainPred),d))
+c_vec = np.zeros((len(trainPred),d))
 h = np.zeros((d,1))
 c = np.zeros((d,1))
 y_vec = []
@@ -335,31 +335,64 @@ for j in range(0,len(trainPred)):
     #                     Ui, Uf, Up, Uo, bi, bf, bp, bo, Wy, by)
     y,c,h,i,_,_,_ = LSTM(c, h, u[j,:,:].reshape(1,1), Wi, Wf, Wp, Wo, 
                          Ui, Uf, Up, Uo, bi, bf, bp, bo, Wy, by)
+    h_vec[j,:] = h.reshape(d)
+    c_vec[j,:] = c.reshape(d)
     #if j==2:
     #    break
-    print(j)
-    print('i')
-    print(i)
-    print('u')
+    
     #print(input)
-    print(u[j,:,:].reshape(1,1))
-    print('h')
-    print(h)
-    print('c')
-    print(c)
     y_vec.append(y.reshape(1))
-
+'''
+###Print Ec and c prior                                                     \
+plt.close()                
+                                                             
+for j in range(0,d):
+    plt.plot(t[1:stop],c_vec[:,j], label = 'Prior')
+    #plt.savefig(path+'/c_compare_{}.png'.format(j))
+    plt.legend()
+    plt.show()
+    plt.close()
+'''
 plt.plot(t[1:stop], y_vec, label='My_LSTM_train')
 
+h_vec = np.zeros((T_new,d))
+c_vec = np.zeros((T_new,d))
+i_vec = np.zeros((T_new,d))
+f_vec = np.zeros((T_new,d))
+p_vec = np.zeros((T_new,d))
+o_vec = np.zeros((T_new,d))
 
 testPred = []
 pred = y_vec[-1].reshape(1,1)
 for j in range(0,T_new):
-    pred,c,h,_,_,_,_ = LSTM(c, h, pred, Wi, Wf, Wp, Wo, 
+    pred,c,h,i,f,p,o = LSTM(c, h, pred, Wi, Wf, Wp, Wo, 
                          Ui, Uf, Up, Uo, bi, bf, bp, bo, Wy, by)
-    testPred.append(pred.reshape(1))           
+    testPred.append(pred.reshape(1)) 
 
-r = np.arange(stop,stop+T_new, dt)
+    h_vec[j,:] = h.reshape(d)
+    c_vec[j,:] = c.reshape(d)
+    
+    i_vec[j,:] = i.reshape(d)
+    f_vec[j,:] = f.reshape(d)
+    p_vec[j,:] = p.reshape(d)
+    o_vec[j,:] = o.reshape(d)
+
+
+plt.close()                
+                                  
+r = np.arange(stop,stop+T_new, dt)                           
+for j in range(0,d):
+    plt.plot(r,c_vec[:,j], label = 'c')
+    #plt.savefig(path+'/c_compare_{}.png'.format(j))
+    plt.plot(r,i_vec[:,j], label = 'i')
+    plt.plot(r,f_vec[:,j], label = 'f')
+    plt.plot(r,p_vec[:,j], label = 'p')
+    plt.plot(r,o_vec[:,j], label = 'o')
+    plt.legend()
+    plt.show()
+    plt.close()
+
+
 plt.plot(r, testPred, 'g', label='MY_LSTM_test')
 
 plt.legend()

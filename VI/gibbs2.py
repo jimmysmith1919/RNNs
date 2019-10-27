@@ -319,6 +319,153 @@ def get_diff(param, param_old, diff_list):
     param_old = param
     return diff_list, param_old
 ###########################################################################
+#log likelihood
+def elbo_c(T, d, c_0, inv_covar, Ec, Ecc_diags, Ecc_off_diags):
+    value = np.zeros((T,d,1))
+    value += np.log(np.sqrt(1/(2*np.pi)*inv_covar))
+
+    value += -1/2*inv_covar*Ecc_diags
+
+    value[0,:,:] += inv_covar*Ezf[0,:,:]*Ec[0,:,:]*c_0
+    value[1:,:,:] += inv_covar*Ezf[1:,:,:]*Ecc_off_diags
+
+    value += inv_covar*Ezi*(2*Ezp-1)*Ec
+
+    value[0,:,:] += -1/2*inv_covar*Ezf[0,:,:]*c_0**2
+    value[1:,:,:] += -1/2*inv_covar*Ezf[1:,:,:]*Ecc_diags[:-1,:,:]
+
+    value[0,:,:] += -inv_covar*Ezi[0,:,:]*Ezf[0,:,:]*(2*Ezp[0,:,:]
+                                                      -1)*c_0
+    value[1:,:,:] += -inv_covar*Ezi[1:,:,:]*Ezf[1:,:,:]*(2*Ezp[1:,:,:]
+                                                      -1)*Ec[:-1,:,:]
+
+    value += -1/2*inv_covar*Ezi
+
+    print('elbo_c:', np.sum(value))
+    return np.sum(value)
+
+def elbo_h(T,d,h_0, inv_covar, Eh, Ehh_diags, Ezo, Ev):
+    value = np.zeros((T,d,1))
+    value += -1/2*inv_covar*Ehh_diags
+    value += inv_covar*Ezo*(2*Ev-1)*Eh
+    value += -1/2*inv_covar*Ezo
+
+
+    log_term = T*(-d/2*np.log(2*np.pi)-1/2*np.sum(
+            np.log((1/inv_covar)) ) )
+    value = np.sum(value)+log_term
+
+    print('elbo_h:', value)
+    return value
+
+
+def elbo_y(T, yd, y, inv_covar_y, Sigma_y, u, Uy, by, Eh, Ehh):
+    value = np.zeros((T,1))
+
+    value += -1/2*(y.transpose(0,2,1) @ inv_covar_y @ y).reshape(T,1)
+
+    Uu_plus_b = Uy @ u + by
+
+    value += (y.transpose(0,2,1) @ inv_covar_y @ (Wy @ Eh
+                                                  + Uu_plus_b)).reshape(T,1)
+
+    value += -1/2*np.trace(Wy.T @ inv_covar_y @ Wy @ Ehh,
+                           axis1=1, axis2 =2).reshape(T,1)
+
+    value += -(Uu_plus_b.transpose(0,2,1) @ inv_covar_y
+               @ Wy @ Eh).reshape(T,1)
+
+    value += -1/2*( Uu_plus_b.transpose(0,2,1) @ inv_covar_y
+                    @ Uu_plus_b).reshape(T,1)
+
+    log_term = T*(-yd/2*np.log(2*np.pi)-1/2*np.log(np.linalg.det(Sigma_y)) )
+    value = np.sum(value)+log_term
+
+    print('elbo_y:', value)
+    return value
+
+
+def elbo_z_star(T,d,Ez,Eh, h_0, W_star, U_star, b_star, u, star):
+
+    value = np.zeros((T,d,1))
+    Uu_plus_b = U_star @ u + b_star
+
+    value[0,:,:] += (Ez[0,:,:]-1/2)*(W_star @ h_0 + Uu_plus_b[0,:,:])
+
+    value[1:,:,:] += (Ez[1:,:,:]-1/2)*(W_star @ Eh[:-1,:,:]
+                                       + Uu_plus_b[1:,:,:])
+    value = np.sum(value)+T*d*np.log(1/2)
+    print('elbo_{}'.format(star), value)
+    return value
+
+def elbo_v(T,d,Ev, Ec):
+    value = 2*(Ev-1/2)*Ec
+    value = np.sum(value)+T*d*np.log(1/2)
+    print('elbo_v:', value)
+    return value
+
+def elbo_gamma1(T, d, E_gamma, Ecc_diags):
+    value = -1/2*E_gamma*4*Ecc_diags
+    print('elbo_gamma1:', np.sum( value) )
+    return np.sum( value )
+
+def elbo_omega_star_1(Eomega_star, g_star, star):
+    value = -1/2*Eomega_star*(g_star)**2
+    print('elbo_omega1_{}:'.format(star), np.sum( value) )
+    return np.sum( value )
+
+def elbo_PG2_vec(g, str, L, h):
+    num = int(L/h)
+    a = .00001*np.ones(g.shape)
+    b = L * np.ones(g.shape)
+    x = np.linspace(a,b,num)
+    y, qdf = qdf_log_pdf_vec(x,1,0,g)
+    value = np.trapz(y,x,axis=0)
+    value = np.sum(value)
+    print('elbo_{}_2'.format(str), value)
+    return value, qdf, x
+
+def get_elbo(T, d, yd,  c_0, inv_covar_c, h_0, inv_covar_h,
+             Wi, Wf, Wp, Wo, y, inv_covar_y, Sigma_y,
+             Ui, Uf, Up, Uo, Uy, u,
+             bi, bf, bp, bo, by,
+             Ec, Ecc_diags, Ecc_off_diags, Sigma_c,
+             Ev, Eh, Ehh_diags, Ehh,Sigma_h,
+             Ezi, Ezf, Ezp, Ezo, E_gamma, g_gamma,
+             Eomega_i, Eomega_f, Eomega_p, Eomega_o,
+             gi, gf, gp , go, L, h):
+
+    elbo = elbo_y(T, yd, y, inv_covar_y, Sigma_y, u, Uy, by, Eh, Ehh)
+    elbo += elbo_c(T, d, c_0, inv_covar_c,
+                  Ec, Ecc_diags, Ecc_off_diags)
+    elbo += elbo_v(T, d, Ev, Ec)
+    elbo += elbo_h(T, d, h_0, inv_covar_h, Eh, Ehh_diags, Ezo, Ev)
+
+    elbo += elbo_z_star(T, d, Ezi, Eh, h_0, Wi, Ui, bi, u, 'zi')
+    elbo += elbo_z_star(T, d, Ezf, Eh, h_0, Wf, Uf, bf, u, 'zf')
+    elbo += elbo_z_star(T, d, Ezp, Eh, h_0, 2*Wp, 2*Up, 2*bp, u, 'zp')
+    elbo += elbo_z_star(T, d, Ezo, Eh, h_0, Wo, Uo, bo, u, 'zo')
+
+    elbo += elbo_gamma1(T, d, E_gamma, Ecc_diags)
+    elbo += elbo_omega_star_1(Eomega_i, gi, 'i')
+    elbo += elbo_omega_star_1(Eomega_f, gf, 'f')
+    elbo += elbo_omega_star_1(Eomega_p, gp, 'p')
+    elbo += elbo_omega_star_1(Eomega_o, go, 'o')
+
+    #integrate all PG variables together and save qdf for entropy calc       
+    PG = np.concatenate((g_gamma, gi,
+                         gf, gp, go), axis=0)
+    value, qdf, x = elbo_PG2_vec(PG, 'Int_PG', L, h)
+
+    elbo += value
+
+    
+    return elbo
+
+
+
+
+##########################################################################
 #parameter updates
 
 def get_Ex_Exx(T, d, ud, Eh, Ehh, u):
@@ -471,6 +618,12 @@ np.random.seed(seed)
 print('random_seed:',seed)
 
 
+#elbo integration parameters                                                 
+comp_elbo = True
+L = 10    #end of integration interval                                       
+dx = .01   #grid spacing                                                      
+div = 1000 #how often to compute elbo  
+
 ##### Data ##########################################################
 
 #Sine Wave#
@@ -566,6 +719,7 @@ bp = np.random.uniform(-1,1, size=(d,1))
 bo = np.random.uniform(-1,1, size=(d,1))
 by = np.random.uniform(-1,1, size=(yd,1))
 #by = np.zeros((yd,1))
+Uy = np.zeros((yd,ud))
 '''
 
 
@@ -590,7 +744,7 @@ bo = weights[2][3*d:4*d].reshape(d,1)
 
 Wy = weights[3].reshape(yd,d)                                                 
 by = weights[4].reshape(yd,1) 
-
+Uy = np.zeros((yd,ud))
 
 
 #Generate priors for training data
@@ -636,7 +790,7 @@ zp = np.random.binomial(1, Ezp, size=(T,d,1))
 Ezo = Ezo.reshape(T,d,1) 
 zo = np.random.binomial(1, Ezo, size=(T,d,1))
 
-
+'''
 Sig_h = update_Sigma_H(T, d, h, hh_diags, zo, v)
 inv_covar_h = 1/Sig_h
 
@@ -644,7 +798,7 @@ Sig_c = update_Sigma_C(T,d, c_0, cc, cc_off, c, zi, zf, zp)
 inv_covar_c = 1/Sig_c
 '''
 
-
+'''
 W_bar_y = np.concatenate((Wy, by), axis =1)
 x_y, xx_y = get_Ex_Exx_No_U(T, d, h, hh) 
 Sigma_y = update_Sigma_y(T, yd, y, W_bar_y, x_y, xx_y)
@@ -676,9 +830,18 @@ path = 'images/{}'.format(timestamp)
 os.mkdir(path)
 
 
+N=10000
+N_burn = int(.30*N)
+h_samples = 0
+c_samples = 0
+i_samples = 0
+f_samples = 0
+p_samples = 0
+o_samples = 0
+
 
 #while diff > tol:
-for k in range(0,100):
+for k in range(0,N):
     diff_list = []
         
     #update q_gamma
@@ -750,13 +913,40 @@ for k in range(0,100):
     h = sample_h_post(T, d, Eh, Sigma_h)
     hh = (h[...,None]*h[:,None,:]).reshape(T,d,d)
     hh_diags = h**2
+
+    if k > N_burn:
+        h_samples += Eh
+        c_samples += Ec
+        i_samples += zi
+        f_samples += zf
+        p_samples += zp
+        o_samples += zo
+
+    ###Likelihood Calculation######                                                
+    if comp_elbo == True:
+        if k % div ==0:
+
+            elbo = get_elbo(T, d, yd, c_0, inv_covar_c, h_0, inv_covar_h,
+                            Wi, Wf, Wp, Wo, y, inv_covar_y, Sigma_y,
+                            Ui, Uf, Up, Uo, Uy, u,
+                            bi, bf, bp, bo, by,
+                            c, cc, cc_off, Sigma_c,
+                            v, h, hh_diags, hh, Sigma_h,
+                            zi, zf, zp, zo, gamma, g_gamma,
+                            omega_i, omega_f, omega_p, omega_o,
+                            gi, gf, gp , go, L, dx)
+            elbo_vec.append(elbo)
+            k_vec.append(k)
+            print('elbo:',elbo)
+
+    ######################## 
         
-    '''
+    
     ##### Update weights ####
     h_min, hh_min = get_Ehmin_Ehhmin(T, d, h, hh, h_0)
     x, xx = get_Ex_Exx(T, d, ud, h, hh, u)
 
-        
+    
     #Update Wi                                                               
     W_bar_i = update_W_bar_star(T, d, ud, x, xx, omega_i, zi)
     diff_list, W_bar_i_old = get_diff( W_bar_i, W_bar_i_old, diff_list)
@@ -787,7 +977,7 @@ for k in range(0,100):
     #Wo,  bo = extract_W_weights_No_U(W_bar_o,  d)                           
     Wo, Uo, bo = extract_W_weights(W_bar_o, d, ud)
     bo = bo.reshape(d,1)
-    '''
+    
     
     #Update Sig_h                                                            
     Sig_h = update_Sigma_H(T, d, h, hh_diags, zo, v)
@@ -799,7 +989,7 @@ for k in range(0,100):
     diff_list, Sig_c_old = get_diff( Sig_c, Sig_c_old, diff_list)
     inv_covar_c = 1/Sig_c
 
-    '''
+
     #Update Wy                                                               
     x_y, xx_y = get_Ex_Exx_No_U(T, d, h, hh)
     W_bar_y = update_W_bar_y(T, d, yd, y, x_y, xx_y)
@@ -812,7 +1002,7 @@ for k in range(0,100):
     Sigma_y = update_Sigma_y(T, yd, y, W_bar_y, x_y, xx_y)
     diff_list, Sigma_y_old = get_diff( Sigma_y, Sigma_y_old, diff_list)
     inv_covar_y = np.linalg.inv(Sigma_y)
-    '''
+    
 
     
     ########################
@@ -824,7 +1014,7 @@ for k in range(0,100):
     print('argmax_diff:',np.argmax(diff_list))
     
     
-    if k % 10 == 0:
+    if k % 1000 == 0:
         y_tr_vec = np.zeros((T,yd))
         y_gen, c_gen, h_gen, _, _, _, _, _ = generate(T,d, yd, 
                                          u.reshape(T,ud), 
@@ -836,7 +1026,7 @@ for k in range(0,100):
                                          bf.reshape(d), bp.reshape(d), 
                                          bo.reshape(d))
         y_tr_vec += y_gen
-        plt.plot(t[1:stop],y_tr_vec.reshape(T))
+        plt.plot(t[1:stop],y_tr_vec.reshape(T), label=k)
 
         
         #Extrapolate, using generated y_{t-1} as input
@@ -872,7 +1062,8 @@ for k in range(0,100):
 
 
         r = np.arange(stop, stop+T_new,dt)
-        plt.plot(r, y_tr_gen_vec, label = '{}'.format(diff))
+        plt.plot(r, y_tr_gen_vec, label = k)
+        plt.legend()
         plt.savefig(path+ '/d{}__varh{}_varc{}.png'.format(  d, var_h,  var_c))
        
 
@@ -899,150 +1090,42 @@ for k in range(0,100):
 
 plt.close()
 
-'''
-print('Ec:')
-print(np.round(Ec,4))
 
 
+#Final Elbo calculation
+if comp_elbo == True:
 
+    elbo = get_elbo(T, d, yd, c_0, inv_covar_c, h_0, inv_covar_h,
+                    Wi, Wf, Wp, Wo, y, inv_covar_y, Sigma_y,
+                    Ui, Uf, Up, Uo, Uy, u,
+                    bi, bf, bp, bo, by,
+                    c, cc, cc_off, Sigma_c,
+                    v, h, hh_diags, hh, Sigma_h,
+                    zi, zf, zp, zo, gamma, g_gamma,
+                    omega_i, omega_f, omega_p, omega_o,
+                    gi, gf, gp , go, L, dx)
+    elbo_vec.append(elbo)
+    k_vec.append(k)
+    print('elbo:',elbo)
 
-print(' ')
-print('Eh:',np.round(Eh,4))
-
-
-print(' ')
-print('Ev:')
-print(np.round(Ev,4))
-
-
-print(' ')
-print('Ezi')
-print(np.round(Ezi,4))
-
-
-print(' ')
-print('Ezf')
-print(np.round(Ezf,4))
-
-print(' ')
-
-print('Ezp')
-print(np.round(Ezp,4))
-
-print(' ')
-print('Ezo')
-print(np.round(Ezo,4))
-
-print('Sigma_y')
-print(Sigma_y)
-'''
-
-'''
-def sample_post(T, d, Eh, Sigma_h, Ec, Sigma_c):
-    post_h = np.zeros((T,d))
-    post_c = np.zeros((T,d))
-    for t in range(0,T):
-        post_h[t,:] = np.random.multivariate_normal(Eh[t,:,:].reshape(d), 
-                                                    Sigma_h[t,:,:])
-    for j in range(0,d):
-        post_c[:,j] = np.random.multivariate_normal(Ec[:,j,:].reshape(T), 
-                                                    Sigma_c[j,:,:])
-    return post_h, post_c
-
-
-def sample_last_post(N, d, Eh, Sigma_h, Ec, Sigma_c):
-    post_h = np.zeros((N,d))
-    post_c = np.zeros((N,d))
-    for n in range(0,N):
-        post_h[n,:] = np.random.multivariate_normal(Eh[-1,:,:].reshape(d), 
-                                                    Sigma_h[-1,:,:])
-        
-        post_c[n,:] = np.random.normal(Ec[-1,:,:].reshape(d), 
-                                       np.sqrt(Sigma_c[:,-1,-1]))
-    return post_h, post_c
+    plt.plot(k_vec, elbo_vec)
+    plt.xlabel('Iteration')
+    plt.ylabel('ELBO')
+    plt.title('ELBO convergence')
+    plt.savefig('images/ELBO__T{}__dt{}_d{}_N{}_varh{}_varc{}.png'.format(
+            end, dt, d, N, var_h,var_c))
+    plt.show()
+    plt.close()
     
-'''
+    '''
+    plt.plot(np.arange(k), diff_vec)
+    plt.xlabel('Iteration')
+    plt.ylabel('Max Parameter Difference')
+    plt.savefig('Error.png')
+    plt.show()
+    plt.close()
+    '''
 
-
-
-'''
-print('Sampling from posterior..') 
-hpost, cpost = sample_last_post(N, d, Eh, Sigma_h, Ec, Sigma_c)
-'''
-
-'''
-#Learned model with training inputs (true y_{t-1})
-y_tr_vec = np.zeros((T,yd))
-for n in range(0,N):
-    y_gen, c_gen, h_gen, v, zi, zf, zp, zo = generate_sample(T,d, yd, 
-                                         u.reshape(T,ud), 
-                                         c_0.reshape(d), Sig_c.reshape(d), 
-                                         h_0.reshape(d), Sig_h.reshape(d), 
-                                         Sigma_y,
-                                         Wy, Wi, Wf, Wp, Wo, 
-                                         Uy, Ui, Uf, Up, Uo, 
-                                         by.reshape(yd), bi.reshape(d), 
-                                         bf.reshape(d), bp.reshape(d), 
-                                         bo.reshape(d))
-    y_tr_vec += y_gen
-y_tr_vec = 1/N*y_tr_vec
-
-
-
-#Learned model on new data but using true previous y as input
-y_test_vec = np.zeros((T_test,yd))
-for n in range(0,N):
-    y_gen, c_gen, h_gen, v, zi, zf, zp, zo = generate_sample(T_test,d, yd, 
-                                         u_test.reshape(T_test,ud), 
-                                         c_0.reshape(d), Sig_c.reshape(d), 
-                                         h_0.reshape(d), Sig_h.reshape(d), 
-                                         Sigma_y,
-                                         Wy, Wi, Wf, Wp, Wo, 
-                                         Uy, Ui, Uf, Up, Uo, 
-                                         by.reshape(yd), bi.reshape(d), 
-                                         bf.reshape(d), bp.reshape(d), 
-                                         bo.reshape(d))
-    y_test_vec += y_gen
-y_test_vec = 1/N*y_test_vec
-
-
-
-
-#Extrapolate, using generated y_{t-1} as input
-    
-y_tr_gen_vec = np.zeros((T_new,yd)) 
-h_arr = np.zeros((T_new,N,d))
-c_arr= np.zeros((T_new,N,d))
-
-for j in range(0,T_new):
-    y_tr_gen_sum = np.zeros(yd)
-    for n in range(0,N):
-        if j ==0:
-            y_tr_gen = y[-1,:,:].reshape(1,yd)
-            c_0 = cpost[n,:]
-            h_0 = hpost[n,:]
-        
-        else: 
-            y_tr_gen = y_tr_gen_vec[j-1,:].reshape(1,yd)
-            c_0 = c_arr[j-1,n,:]
-            h_0 = h_arr[j-1,n,:]
-    
-        y_tr_gen, c_0, h_0, _,_,_,_,_ = generate_sample(1,d, yd, y_tr_gen, 
-                                         c_0.reshape(d), Sig_c.reshape(d), 
-                                         h_0.reshape(d), Sig_h.reshape(d), 
-                                         Sigma_y,
-                                         Wy, Wi, Wf, Wp, Wo, 
-                                         Uy, Ui, Uf, Up, Uo, 
-                                         by.reshape(yd), bi.reshape(d), 
-                                         bf.reshape(d), bp.reshape(d), 
-                                         bo.reshape(d))
-        y_tr_gen_sum += y_tr_gen.reshape(yd)
-        c_arr[j,n,:] = c_0.reshape(d)
-        h_arr[j,n,:] = h_0.reshape(d)
-        
-        
-    y_tr_gen_vec[j,:] = 1/N*y_tr_gen_sum
-'''
 
 
 #Learned model with training inputs (true y_{t-1})
@@ -1058,59 +1141,72 @@ y_gen, c_gen, h_gen, v, zi, zf, zp, zo = generate(T,d, yd,
                                          bo.reshape(d))
 y_tr_vec += y_gen
 
-'''
-#Learned model on new data but using true previous y as input
-y_test_vec = np.zeros((T_test,yd))
 
-y_gen, c_gen, h_gen, v, zi, zf, zp, zo = generate(T_test,d, yd, 
-                                         u_test.reshape(T_test,ud), 
-                                         c_0.reshape(d), Sig_c.reshape(d), 
-                                         h_0.reshape(d), Sig_h.reshape(d), 
-                                         Sigma_y,
-                                         Wy, Wi, Wf, Wp, Wo, 
-                                         Ui, Uf, Up, Uo, 
-                                         by.reshape(yd), bi.reshape(d), 
-                                         bf.reshape(d), bp.reshape(d), 
-                                         bo.reshape(d))
-y_test_vec += y_gen
-'''
 
-'''
-##Test code below using learned model on new data with previous y as 
-#input, but one at a time
-y_test_vec2 = np.zeros((T_test,yd))
-h_arr = np.zeros((T_test,d))
-c_arr= np.zeros((T_test,d))
+Eh = h_samples/(N-N_burn)
+Ec = c_samples/(N-N_burn)
+Ezi = i_samples/(N-N_burn)
+Ezf = f_samples/(N-N_burn)
+Ezp = p_samples/(N-N_burn)
+Ezo = o_samples/(N-N_burn)
 
-for j in range(0,T_test):
-    if j == 0:
-        y_gen = u_test[j,:,:].reshape(1,ud)
-        c_0 = Ec[-1,:,0].reshape(d) 
-        h_0 = Eh[-1,:,0].reshape(d)
-    else:
-        y_gen = u_test[j,:,:].reshape(1,ud)
-        c_0 = c_arr[j-1,:]
-        h_0 = h_arr[j-1,:]
 
-    
+###Print Eh and h prior                                                      
+for j in range(0,d):
+    plt.plot(t[1:stop],h_gen[:,j], label = 'Prior')
+    plt.plot(t[1:stop],Eh[:,j,:], label = 'Eh')
+    plt.legend()
+    plt.savefig(path+'/h_compare_{}.png'.format(j))
+    plt.close()
 
-    
-    y_gen, c_0, h_0, _, _, _, _, _ = generate(1,d, yd, 
-                                         y_gen.reshape(1,yd), 
-                                         c_0.reshape(d), Sig_c.reshape(d), 
-                                         h_0.reshape(d), Sig_h.reshape(d), 
-                                         Sigma_y,
-                                         Wy, Wi, Wf, Wp, Wo, 
-                                         Ui, Uf, Up, Uo, 
-                                         by.reshape(yd), bi.reshape(d), 
-                                         bf.reshape(d), bp.reshape(d), 
-                                         bo.reshape(d))
-    y_test_vec2[j,:] += y_gen.reshape(yd)
-    c_arr[j,:] = c_0.reshape(d)
-    h_arr[j,:] = h_0.reshape(d)
-    
-'''
+###Print Ec and c prior                                                      
+for j in range(0,d):
+    plt.plot(t[1:stop],c_gen[:,j], label = 'Prior')
+    plt.plot(t[1:stop],Ec[:,j,:], label = 'Ec')
+    plt.legend()
+    plt.savefig(path+'/c_compare_{}.png'.format(j))
+    plt.close()
 
+###Print Ezi and zi prior                                                      
+for j in range(0,d):
+    plt.plot(t[1:stop],zi[:,j], label = 'Prior')
+    plt.plot(t[1:stop],Ezi[:,j,:], label = 'Ezi')
+    plt.legend()
+    plt.savefig(path+'/i_compare_{}.png'.format(j))
+    plt.close()
+
+for j in range(0,d):
+    plt.plot(t[1:stop],zf[:,j], label = 'Prior')
+    plt.plot(t[1:stop],Ezf[:,j,:], label = 'Ezf')
+    plt.legend()
+    plt.savefig(path+'/f_compare_{}.png'.format(j))
+    plt.close()
+
+for j in range(0,d):
+    plt.plot(t[1:stop],zp[:,j], label = 'Prior')
+    plt.plot(t[1:stop],Ezp[:,j,:], label = 'Ezp')
+    plt.legend()
+    plt.savefig(path+'/p_compare_{}.png'.format(j))
+    plt.close()
+
+for j in range(0,d):
+    plt.plot(t[1:stop],zo[:,j], label = 'Prior')
+    plt.plot(t[1:stop],Ezo[:,j,:], label = 'Ezo')
+    plt.legend()
+    plt.savefig(path+'/o_compare_{}.png'.format(j))
+    plt.close()
+
+print('h')
+print(h_gen[-1,:].reshape(d))
+
+print('Eh')
+print(Eh[-1,:,0].reshape(d))
+
+print('c')
+print(c_gen[-1,:].reshape(d))
+
+print('Ec')
+print(Ec[-1,:,0].reshape(d))
 
 #Extrapolate, using generated y_{t-1} as input
 
@@ -1122,8 +1218,8 @@ for j in range(0,T_new):
     if j ==0:
         #y_tr_gen = y[-1,:,:].reshape(1,yd)
         input = y[-1,:,:].reshape(1,yd)#np.zeros(1).reshape(1,1)
-        ct =  Ec[-1,:,0].reshape(d) 
-        ht = Eh[-1,:,0].reshape(d)
+        ct =  Ec[-1,:,0].reshape(d)#c_gen[-1,:].reshape(d) 
+        ht = Eh[-1,:,0].reshape(d)#h_gen[-1,:].reshape(d)
         
     else: 
         #y_tr_gen = y_tr_gen_vec[j-1,:]
@@ -1144,30 +1240,16 @@ for j in range(0,T_new):
     c_arr[j,:] = ct.reshape(d)
     h_arr[j,:] = ht.reshape(d)
     
-        
-     
+    
+
+
 
 
 
 plt.plot(t[1:],y_full.reshape(T_full))
 plt.plot(t[1:stop],y_tr_vec.reshape(T))
-#plt.plot(t[stop:],y_test_vec.reshape(T_test))
-#plt.plot(t[stop:],y_test_vec2.reshape(T_test),'m')
-#plt.plot(t[1:],y.reshape(T_full))
-#plt.plot(t[1:],y_gen_vec.reshape(T_full))
-#plt.plot(t[1:],y_gen.reshape(T))
-#r1 = np.arange(t[1],end+T_new*dt, dt)
-#plt.plot(t[1:], y_tr_gen_vec)
-#plt.plot(r1, y_tr_gen_vec)
 
-'''
-r = np.arange(t[-1]+dt, t[-1]+dt+T_new*dt, dt)
-plt.plot(r, y_tr_gen_vec)
-'''
-
-#r = np.arange(t[stop]+dt, t[stop]+dt+T_new*dt, dt)
 r = np.arange(stop, stop+T_new,dt)
-#plt.plot(r,y_test_vec2.reshape(T_new),'m')
 plt.plot(r, y_tr_gen_vec, 'r')
 
 

@@ -759,8 +759,8 @@ h_0 = mu_h0*np.ones((d,1))
 
 #Initialize Parameters
 var_y = np.random.uniform(.001,.5) #.0001#np.random.uniform(.001,.5)
-Sigma_y = var_y*np.identity(yd)
-inv_covar_y = 1/var_y*np.identity(yd)
+Sigma_y = 0#var_y*np.identity(yd)
+inv_covar_y = np.zeros((1,1))#1/var_y*np.identity(yd)
 
 '''
 #Random weights
@@ -815,8 +815,8 @@ bf = weights[2][d:2*d].reshape(d,1)
 bp = weights[2][2*d:3*d].reshape(d,1) 
 bo = weights[2][3*d:4*d].reshape(d,1) 
 
-Wy = weights[3].reshape(yd,d)                                                 
-by = weights[4].reshape(yd,1) 
+Wy = np.zeros((yd,d))#weights[3].reshape(yd,d)                                                 
+by = np.zeros((yd,1))#weights[4].reshape(yd,1) 
 Uy = np.zeros((yd,ud))
 
 
@@ -872,12 +872,12 @@ Sig_c = update_Sigma_C(T,d, c_0, Ecc_diags,
                        Ecc_off_diags, Ec, Ezi, Ezf, Ezp)
 inv_covar_c = 1/Sig_c
 '''
-
+'''
 W_bar_y = np.concatenate((Wy, by), axis =1)
 Ex_y, Exx_y = get_Ex_Exx_No_U(T, d, Eh, Ehh) 
 Sigma_y = update_Sigma_y(T, yd, y, W_bar_y, Ex_y, Exx_y)
 inv_covar_y = np.linalg.inv(Sigma_y)
-
+'''
 
 #E_gamma = np.random.uniform(0,1, size=(T,d,1))
 '''
@@ -1533,7 +1533,8 @@ y_gen, c_gen, h_gen, v, zi, zf, zp, zo = generate(T,d, yd,
 y_tr_vec += y_gen
 
 
-###Print Eh and h prior                                                      
+
+###Print Eh and h prior                                                    
 for j in range(0,d):
     plt.plot(t[1:stop],h_gen[:,j], label = 'Prior')
     plt.plot(t[1:stop],Eh[:,j,:], label = 'Eh')
@@ -1541,7 +1542,7 @@ for j in range(0,d):
     plt.savefig(path+'/h_compare_{}.png'.format(j))
     plt.close()
 
-###Print Ec and c prior                                                             
+###Print Ec and c prior                                                    
 for j in range(0,d):
     plt.plot(t[1:stop],c_gen[:,j], label = 'Prior')
     plt.plot(t[1:stop],Ec[:,j,:], label = 'Ec')
@@ -1549,33 +1550,7 @@ for j in range(0,d):
     plt.savefig(path+'/c_compare_{}.png'.format(j))
     plt.close()
 
-for j in range(0,d):
-    plt.plot(t[1:stop],zi[:,j], label = 'Prior')
-    plt.plot(t[1:stop],Ezi[:,j,:], label = 'Ezi')
-    plt.legend()
-    plt.savefig(path+'/i_compare_{}.png'.format(j))
-    plt.close()
 
-for j in range(0,d):
-    plt.plot(t[1:stop],zf[:,j], label = 'Prior')
-    plt.plot(t[1:stop],Ezf[:,j,:], label = 'Ezf')
-    plt.legend()
-    plt.savefig(path+'/f_compare_{}.png'.format(j))
-    plt.close()
-
-for j in range(0,d):
-    plt.plot(t[1:stop],zp[:,j], label = 'Prior')
-    plt.plot(t[1:stop],Ezp[:,j,:], label = 'Ezp')
-    plt.legend()
-    plt.savefig(path+'/p_compare_{}.png'.format(j))
-    plt.close()
-
-for j in range(0,d):
-    plt.plot(t[1:stop],zo[:,j], label = 'Prior')
-    plt.plot(t[1:stop],Ezo[:,j,:], label = 'Ezo')
-    plt.legend()
-    plt.savefig(path+'/o_compare_{}.png'.format(j))
-    plt.close()
 
 '''
 #Learned model on new data but using true previous y as input
@@ -1664,6 +1639,8 @@ for j in range(0,T_new):
     h_arr[j,:] = ht.reshape(d)
     
         
+
+
 
 
 plt.plot(t[1:],y_full.reshape(T_full))
