@@ -1,19 +1,28 @@
 import numpy as np
 from PG_int import pgpdf
 
-def build_prec_x(inv_var,W,pg):
-    return np.diag(inv_var)+ (W.T @ np.diag(pg) @ W)
+def build_prec_x(inv_var,W,pg,T,d):
+    prec = np.zeros((T*d,T*d))
+    for t in range(0,T-1):
+        prec[t*d:t*d+d,t*d:t*d+d] = 2*np.diag(inv_var)+ (W.T @ 
+                                                 np.diag(pg[t+1,:,0]) @ W)
+        prec[t*d:t*d+d,t*d+d:t*d+2*d] = -np.diag(inv_var)
+        prec[t*d+d:t*d+2*d, t*d:t*d+d] = -np.diag(inv_var)
+    prec[(T-1)*d:(T-1)*d+d,(T-1)*d:(T-1)*d+d] = np.diag(inv_var)
+    return prec
 
 def build_prec_muT(x0, u, inv_var, z, omega, W, U,b,T,d):
-    val =  W.T @ (z-1/2)
-    val +=  (np.diag(inv_var) @ x0).reshape(T,d,1)
-    val +=  W.T @ -(omega*(U @ u + b)) 
+    val = np.zeros((T*d,1))
+    val[:(T-1)*d,0] +=  (W.T @ (z[1:,:,:]-1/2)).ravel()
+    val[:d,0] +=  inv_var*x0
+    val[:(T-1)*d,0] +=  (W.T @ -(omega[1:,:,:]*(U @ u[1:,:,:] + b)) ).ravel()
     return  val
 
 def log_like(x0,inv_var,x, z, omega, u, W, U, b, bpg, T, d):
     
-    x0 = x0.reshape(T,d,1)
+    x0 = x0.reshape(1,d,1)
     sum = -1/2*(x-x0).transpose(0,2,1) @ np.diag(inv_var) @ (x-x0)
+    sum += -d/2*np.log(2*np.pi)-1/2*np.log(np.prod(1/inv_var))
     sum += d*np.log(1/2)
     sum += (W @ x + U @ u + b).transpose(0,2,1) @  (z-1/2) 
     sum += -1/2*x.transpose(0,2,1) @ W.T @ np.diag(omega[0,:,0]) @ W @ x

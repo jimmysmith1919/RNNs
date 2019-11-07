@@ -4,7 +4,7 @@ from pypolyagamma import PyPolyaGamma
 
 
 def update_normal_dim(prec, prec_muT):
-    covar = np.linalg.inv(prec)
+    covar = np.linalg.solve(prec, np.identity(len(prec[:,0])))
     mu = covar @ prec_muT 
     return mu, covar
 

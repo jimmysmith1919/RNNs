@@ -14,6 +14,7 @@ def log_like(x0,inv_var,x, z, omega, u, W, U, b, bpg, T, d):
     
     x0 = x0.reshape(T,d,1)
     sum = -1/2*(x-x0).transpose(0,2,1) @ np.diag(inv_var) @ (x-x0)
+    sum += -d/2*np.log(2*np.pi)-1/2*np.log(np.prod(1/inv_var))
     sum += d*np.log(1/2)
     sum += (W @ x + U @ u + b).transpose(0,2,1) @  (z-1/2) 
     sum += -1/2*x.transpose(0,2,1) @ W.T @ np.diag(omega[0,:,0]) @ W @ x
