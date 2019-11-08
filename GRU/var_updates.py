@@ -21,16 +21,31 @@ def sample_post_pg(b,g,T,d):
     return out.reshape(T,d,1)
     
  
-def Wbar_update(z,omega,x,xxT,T,d,ud):
+def Wbar_update(z,omega,x,xxT, Sigma_inv,mu,T,d,ud):
     A = np.zeros((d, d+ud+1,d+ud+1))
     rhs = np.zeros((d,d+ud+1,1))
     for i in range(0,d):
         om_xxT = omega[:,i,:].reshape(T,1,1)*xxT
 
-        A[i,:,:] = np.sum(om_xxT, axis = 0)
+        A[i,:,:] = np.sum(om_xxT, axis = 0) + np.diag(Sigma_inv[i,:])
 
         zx = (z[:,i,:].reshape(T,1,1)-1/2)*x
-        rhs[i,:,:] = np.sum(zx, axis=0)
-    return np.linalg.solve(A,rhs).reshape(d,d+ud+1)
+        rhs[i,:,:] = np.sum(zx, axis=0)+(Sigma_inv[i,:]*mu[i,:]
+                                         ).reshape(d+ud+1,1)
+    W_covar = np.linalg.inv(A)
+    W_mu = (W_covar @ rhs)#.reshape(d,d+ud+1)
+    return W_covar, W_mu
+
+def sample_weights(W_covar, W_mu, d, ud):
+    W_bar = np.zeros((d,d+ud+1))
+    for j in range(0,d):
+        W_bar[j,:] = np.random.multivariate_normal(W_mu[j,:,0], W_covar[j,:,:])
+    return W_bar
+        
 
 
+def extract_W_weights(W_bar, d, ud):
+    W = W_bar[:,:d]
+    U = W_bar[:,d:d+ud]
+    b = W_bar[:,-1].reshape(d,1)
+    return W, U, b
