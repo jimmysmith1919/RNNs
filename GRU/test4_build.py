@@ -2,15 +2,17 @@ import numpy as np
 from PG_int import pgpdf
 import sys
 
-def build_prec_x(inv_var,W,pg,z,T,d):
+def build_prec_x(inv_var, Wz, pg_z, z, Wr, pg_r, r, T, d):
     prec = np.zeros((T*d,T*d))
     Sigma_inv = np.diag(inv_var)
     for t in range(0,T-1):
         prec[t*d:t*d+d,t*d:t*d+d]=Sigma_inv+np.outer(1-z[t+1,:,0],
-                                                     1-z[t+1,:,0])*Sigma_inv+(
-                                               W.T @ np.diag(pg[t+1,:,0]) @ W)
-        
+                                                     1-z[t+1,:,0])*Sigma_inv
 
+        prec[t*d:t*d+d,t*d:t*d+d] += Wz.T @ np.diag(pg_z[t+1,:,0]) @ Wz
+
+        prec[t*d:t*d+d,t*d:t*d+d] += Wr.T @ np.diag(pg_r[t+1,:,0]) @ Wr 
+        
         cross = -np.outer(1-z[t+1,:,0], np.ones(d))*Sigma_inv
         prec[t*d:t*d+d,t*d+d:t*d+2*d] = cross
         prec[t*d+d:t*d+2*d, t*d:t*d+d] = cross
@@ -18,11 +20,15 @@ def build_prec_x(inv_var,W,pg,z,T,d):
     prec[(T-1)*d:(T-1)*d+d,(T-1)*d:(T-1)*d+d] = Sigma_inv
     return prec
 
-def build_prec_muT(x0, u, inv_var, z, omega, W, U,b,T,d):
+def build_prec_muT(x0,u,inv_var,z,pg_z,Wz,Uz,bz,r,pg_r,Wr,Ur,br,T,d):
     val = np.zeros((T*d,1))
-    val[:(T-1)*d,0] +=  (W.T @ (z[1:,:,:]-1/2)).ravel()
     val[:d,0] +=  inv_var*((1-z[0,:,0])*x0)
-    val[:(T-1)*d,0] +=  (W.T @ -(omega[1:,:,:]*(U @ u[1:,:,:] + b)) ).ravel()
+    
+    val[:(T-1)*d,0] +=  (Wz.T @ (z[1:,:,:]-1/2)).ravel()
+    val[:(T-1)*d,0] +=  (Wz.T @ -(pg_z[1:,:,:]*(Uz @ u[1:,:,:] + bz)) ).ravel()
+
+    val[:(T-1)*d,0] +=  (Wr.T @ (r[1:,:,:]-1/2)).ravel()
+    val[:(T-1)*d,0] +=  (Wr.T @ -(pg_r[1:,:,:]*(Ur @ u[1:,:,:] + br)) ).ravel()
     return  val
 
 def build_z_param(h, inv_var, W, U, u, b,d):
@@ -47,4 +53,3 @@ def log_like(x0,inv_var,x, z, omega, u, W, U, b, bpg, T, d):
     return sum
 
 
-    

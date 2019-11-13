@@ -9,7 +9,7 @@ import sys
 #print(seed)
 np.random.seed(60808)
 
-T=10
+T=3
 d=3
 ud = 2
 h0 = .3*np.ones(d)
@@ -20,7 +20,7 @@ inv_var = np.ones(d)*1/var
 
 #Initialize weights
 Sigma_theta = np.ones((d,d+ud+1))*(1/3)**2
-W_mu_prior = 10*np.random.uniform(-.1,.1,size = (d,d+ud+1))
+W_mu_prior = np.random.uniform(-.9,.9,size = (d,d+ud+1))
 W_bar = np.random.normal(W_mu_prior, Sigma_theta)
 W,U,b = update.extract_W_weights(W_bar, d, ud)
 
@@ -42,7 +42,7 @@ for i in range(1,T+1):
 
 #Loop parameters
 
-N=100000
+N=10000
 log_like_vec = []
 
 h_samples = 0
