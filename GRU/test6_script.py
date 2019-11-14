@@ -1,6 +1,7 @@
 import numpy as np
 import var_updates as update
-import test5_build as build
+import test6_build as build
+import generate_GRU as gen
 from scipy.special import expit
 import  matplotlib.pyplot as plt
 import sys
@@ -9,7 +10,7 @@ import sys
 #print(seed)
 np.random.seed(60808)
 
-T=5
+T=3
 d=3
 ud = 2
 h0 = .3*np.ones(d)
@@ -23,10 +24,9 @@ Sigma_theta = np.ones((d,d+ud+1))*(1/3)**2
 
 L=-.9
 U= .9
-Wz_bar, Wz,Uz,bz,Wz_mu_prior = update.init_weights(L,U, Sigma_theta, d, ud)
-Wr_bar, Wr,Ur,br,Wr_mu_prior  = update.init_weights(L,U, Sigma_theta, d, ud)
-Wp_bar, Wp,Up,bp,Wp_mu_prior  = update.init_weights(L,U, Sigma_theta, d, ud)
-
+Wz_bar,Wz,Uz,bz,Wz_mu_prior = update.init_weights(L,U, Sigma_theta, d, ud)
+Wr_bar,Wr,Ur,br,Wr_mu_prior  = update.init_weights(L,U, Sigma_theta, d, ud)
+Wp_bar,Wp,Up,bp,Wp_mu_prior  = update.init_weights(L,U, Sigma_theta, d, ud)
 '''
 ##TESTING###
 Wz = np.random.uniform(3,4, size=(d,d))
@@ -49,19 +49,22 @@ train_weights = True
 h = np.zeros((T+1,d,1))
 h[0,:,0] = h0
 Er = np.zeros((T,d,1))
+Ez = np.zeros((T,d,1))
 for i in range(1,T+1):
     #TESTING
     h[i,:,0] = np.random.multivariate_normal(h[i-1,:,0], np.diag(1/inv_var) )
-    #np.random.uniform(-.5,.5,3 )#
+    #np.random.uniform(-.5,.5,3 
     Er[i-1,:,:] = expit(Wr @ h[i-1,:,:] + Ur @ u[i-1,:,:] + br)
+    Ez[i-1,:,:] = expit(Wz @ h[i-1,:,:] + Uz @ u[i-1,:,:] + bz)
 
 #Initialize r 
 r = np.random.binomial(1,Er, size=(T,d,1))
+z = np.random.binomial(1,Ez, size=(T,d,1))
 
 rh = np.zeros((T+1,d,1))
 #Loop parameters
 
-N=10000
+N=100000000
 log_like_vec = []
 
 h_samples =0
@@ -82,16 +85,18 @@ for k in range(0,N):
     
     rh[:-1,:,:] = r*h[:-1,:,:]
     gamma = update.pg_update(1, rh, u, 2*Wp, 2*Up, 2*bp, T, d)
+
+    #Update v
+    fv = build.build_v_param(h,z,rh,u,Wp,Up,bp, inv_var, d)
+    Ev = update.update_bern(fv)
+    v  = np.random.binomial(1, Ev, size=(T,d,1))
     
     #Update Zs
-    fz = build.build_z_param(h, inv_var.reshape(d,1), Wz, Uz, u, bz, d)
+    fz = build.build_z_param(h,v,inv_var.reshape(d,1), Wz, Uz, u, bz, d)
     Ez = update.update_bern(fz)
     z = np.random.binomial(1,Ez, size=(T,d,1))
 
-    #Update v
-    fv = 2*(Wp @ rh[:-1,:,:] + Up @ u + bp)
-    Ev = update.update_bern(fv)
-    v  = np.random.binomial(1, Ev, size=(T,d,1))
+    
 
     #Update r's
     for j in range(0,d):                            
@@ -172,7 +177,7 @@ print(np.round(EWp_bar,4))
 
 #Generate priors
 
-M = N
+M = 10000#N
 h_samples = 0
 z_samples = 0
 r_samples = 0
@@ -181,6 +186,11 @@ Wz_bar_samples = 0
 Wr_bar_samples = 0
 Wp_bar_samples = 0
 
+
+h1_samples = 0
+z1_samples = 0
+r1_samples = 0
+v1_samples = 0
 
 
 for n in range(0,M):
@@ -198,10 +208,21 @@ for n in range(0,M):
     z = np.zeros((T,d,1))
     r = np.zeros((T,d,1))
     v = np.zeros((T,d,1))
+
+    '''
+    h1 = np.zeros((T+1,d,1))
+    z1 = np.zeros((T,d,1))
+    r1 = np.zeros((T,d,1))
+    v1 = np.zeros((T,d,1))
+    '''
+    
     h[0,:,0] = h0
+
+    #h1[0,:,0] = h0
+    
     pz = expit(Wz @ h0.reshape(d) + Uz @ u[0,:,:].reshape(ud) + bz.reshape(d))
     z[0,:,0] =  np.random.binomial(1,pz)
-
+    
     pr = expit(Wr @ h0.reshape(d) + Ur @ u[0,:,:].reshape(ud) + br.reshape(d))
     r[0,:,0] =  np.random.binomial(1,pr)
 
@@ -209,10 +230,21 @@ for n in range(0,M):
     pv = expit(2*(Wp @ (r[0,:,0]*h0).reshape(d)+
                   Up @ u[0,:,:].reshape(ud)+bp.reshape(d)))
     v[0,:,0] =  np.random.binomial(1,pv)
-
+    
+    Sigma = np.diag(1/inv_var)
+    z_ch, r_ch, v_ch, h_ch, y = gen.stoch_GRU_step(Sigma,h[0,:,0],
+                                                   u[0,:,0], Wz,
+                                                   Uz,bz[:,0],
+                                                   Wr, Ur, br[:,0],
+                                                   Wp, Up, bp[:,0],
+                                                   0, 0)
+    
+    
     for i in range(1,T+1):
-        h[i,:,0] = np.random.multivariate_normal((1-z[i-1,:,0])*h[i-1,:,0], 
+        h_in = (1-z[i-1,:,0])*h[i-1,:,0]+z[i-1,:,0]*(2*v[i-1,:,0]-1)
+        h[i,:,0] = np.random.multivariate_normal(h_in, 
                                                  np.diag(1/inv_var) )
+
         if i != T:
              pz = expit(Wz @ h[i,:,0].reshape(d) + 
                              Uz @ u[i,:,:].reshape(ud) + bz.reshape(d))
@@ -225,6 +257,19 @@ for n in range(0,M):
              pv = expit(2*(Wp @ (r[i,:,0]*h[i,:,0]).reshape(d)+
                   Up @ u[i,:,:].reshape(ud)+bp.reshape(d)))
              v[i,:,0] =  np.random.binomial(1,pv)
+
+             '''
+             z_ch, r_ch, v_ch, h_ch, y = gen.stoch_GRU_step(Sigma,h[i,:,0],
+                                                       u[i,:,0], Wz, Uz,
+                                                       bz[:,0],
+                                                       Wr, Ur, br[:,0],
+                                                       Wp, Up, bp[:,0],
+                                                       0, 0)
+             '''
+    
+        
+        
+             
              
     h_samples += h
     z_samples += z
@@ -234,6 +279,13 @@ for n in range(0,M):
     Wr_bar_samples += Wr_bar
     Wp_bar_samples += Wp_bar
 
+    '''
+    h1_samples += h_ch 
+    z1_samples += z_ch
+    r1_samples += r_ch
+    v1_samples += v_ch
+    '''
+    
 
 Eh = h_samples/M
 Ez = z_samples/M
@@ -256,11 +308,29 @@ print('EWr_bar prior')
 print(np.round(EWr_bar,4))
 print('EWp_bar prior')
 print(np.round(EWp_bar,4))
-print('Wp_mu_prior')
-print(np.round(Wp_mu_prior,4))
+#print('Wz_bar_prior_mean')
+#print(np.round(Wz_mu_prior,4))
+
+
+'''
+Eh1 = h1_samples/M
+Ez1 = z1_samples/M
+Er1 = r1_samples/M
+Ev1 = v1_samples/M
+
+print('Eh1_prior')
+print(Eh1)
+print('Ez1_prior')
+print(Ez1)
+print('Er1_prior')
+print(Er1)
+print('Ev1_prior')
+print(Ev1)
+'''
 
 '''
 ran = np.arange(0,len(log_like_vec),1)
 plt.plot(ran,log_like_vec)
 plt.show()
 '''
+

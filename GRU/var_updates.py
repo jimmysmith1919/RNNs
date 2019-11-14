@@ -66,6 +66,6 @@ def init_weights(L,U, Sigma_theta, d, ud):
     W_mu_prior = np.random.uniform(L,U,size = (d,d+ud+1))
     W_bar = np.random.normal(W_mu_prior, Sigma_theta)
     W,U,b = extract_W_weights(W_bar, d, ud)
-    return W, U, b, W_mu_prior
+    return W_bar, W, U, b, W_mu_prior
     
 
