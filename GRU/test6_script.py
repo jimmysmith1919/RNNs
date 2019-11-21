@@ -2,6 +2,7 @@ import numpy as np
 import var_updates as update
 import test6_build as build
 import generate_GRU as gen
+import plot_dist as plot_dist
 from scipy.special import expit
 import  matplotlib.pyplot as plt
 import sys
@@ -10,12 +11,12 @@ import sys
 #print(seed)
 np.random.seed(60808)
 
-T=3
-d=3
-ud = 2
-h0 = .3*np.ones(d)
+T=10
+d=5
+ud = 3
+h0 = 0*np.ones(d)
 u = np.random.uniform(-1,1,size=(T,ud,1))
-var=.01
+var=.1
 inv_var = np.ones(d)*1/var
 
 
@@ -27,7 +28,7 @@ U= .9
 Wz_bar,Wz,Uz,bz,Wz_mu_prior = update.init_weights(L,U, Sigma_theta, d, ud)
 Wr_bar,Wr,Ur,br,Wr_mu_prior  = update.init_weights(L,U, Sigma_theta, d, ud)
 Wp_bar,Wp,Up,bp,Wp_mu_prior  = update.init_weights(L,U, Sigma_theta, d, ud)
-'''
+
 ##TESTING###
 Wz = np.random.uniform(3,4, size=(d,d))
 Uz = np.random.uniform(3,4, size=(d,ud))
@@ -40,7 +41,7 @@ br = np.random.uniform(3,4, size = (d,1))
 Wp = np.random.uniform(3,4, size=(d,d))
 Up = np.random.uniform(3,4, size=(d,ud))
 bp = np.random.uniform(3,4, size = (d,1))
-'''
+
 
 train_weights = True
 
@@ -64,7 +65,7 @@ z = np.random.binomial(1,Ez, size=(T,d,1))
 rh = np.zeros((T+1,d,1))
 #Loop parameters
 
-N=100000000
+N=10000
 log_like_vec = []
 
 h_samples =0
@@ -75,7 +76,13 @@ Wz_bar_samples = 0
 Wr_bar_samples = 0
 Wp_bar_samples = 0
 
-N_burn = .4*N
+N_burn = int(.4*N)
+
+T_check = 4
+d_check = 2
+h_samples_vec = np.zeros((N-N_burn-1,d))
+
+
 
 count = 0
 for k in range(0,N):
@@ -134,14 +141,9 @@ for k in range(0,N):
                                                 Wp_mu_prior,T,d,ud)
 
         
-    '''
-    if k%100 == 0:
-        loglike = build.log_like(h0,inv_var,h, z, omega, u, W, U, b, bpg,T, d)
-        print(loglike)
-        log_like_vec.append(loglike[0,0,0])
-    '''
     if k > N_burn:
-        h_samples +=h
+        h_samples_vec[k-N_burn-1,:] = h[T_check,:,0]
+        h_samples += h
         z_samples += z
         r_samples += r
         v_samples += v
@@ -150,6 +152,7 @@ for k in range(0,N):
         Wp_bar_samples += Wp_bar
     print(k)
 
+    
 
 Eh = h_samples/(N-N_burn-1)
 Ez = z_samples/(N-N_burn-1)
@@ -174,10 +177,10 @@ print('EWp_bar')
 print(np.round(EWp_bar,4))
 
 
-
+'''
 #Generate priors
 
-M = 10000#N
+M = 100000#N
 h_samples = 0
 z_samples = 0
 r_samples = 0
@@ -209,16 +212,9 @@ for n in range(0,M):
     r = np.zeros((T,d,1))
     v = np.zeros((T,d,1))
 
-    '''
-    h1 = np.zeros((T+1,d,1))
-    z1 = np.zeros((T,d,1))
-    r1 = np.zeros((T,d,1))
-    v1 = np.zeros((T,d,1))
-    '''
     
     h[0,:,0] = h0
 
-    #h1[0,:,0] = h0
     
     pz = expit(Wz @ h0.reshape(d) + Uz @ u[0,:,:].reshape(ud) + bz.reshape(d))
     z[0,:,0] =  np.random.binomial(1,pz)
@@ -258,18 +254,7 @@ for n in range(0,M):
                   Up @ u[i,:,:].reshape(ud)+bp.reshape(d)))
              v[i,:,0] =  np.random.binomial(1,pv)
 
-             '''
-             z_ch, r_ch, v_ch, h_ch, y = gen.stoch_GRU_step(Sigma,h[i,:,0],
-                                                       u[i,:,0], Wz, Uz,
-                                                       bz[:,0],
-                                                       Wr, Ur, br[:,0],
-                                                       Wp, Up, bp[:,0],
-                                                       0, 0)
-             '''
     
-        
-        
-             
              
     h_samples += h
     z_samples += z
@@ -279,12 +264,7 @@ for n in range(0,M):
     Wr_bar_samples += Wr_bar
     Wp_bar_samples += Wp_bar
 
-    '''
-    h1_samples += h_ch 
-    z1_samples += z_ch
-    r1_samples += r_ch
-    v1_samples += v_ch
-    '''
+    
     
 
 Eh = h_samples/M
@@ -310,27 +290,112 @@ print('EWp_bar prior')
 print(np.round(EWp_bar,4))
 #print('Wz_bar_prior_mean')
 #print(np.round(Wz_mu_prior,4))
-
-
-'''
-Eh1 = h1_samples/M
-Ez1 = z1_samples/M
-Er1 = r1_samples/M
-Ev1 = v1_samples/M
-
-print('Eh1_prior')
-print(Eh1)
-print('Ez1_prior')
-print(Ez1)
-print('Er1_prior')
-print(Er1)
-print('Ev1_prior')
-print(Ev1)
 '''
 
 '''
-ran = np.arange(0,len(log_like_vec),1)
-plt.plot(ran,log_like_vec)
+if train_weights == True:
+    Wz, Uz, bz = update.extract_W_weights(Wz_mu_prior, d, ud)
+    Wr, Ur, br = update.extract_W_weights(Wr_mu_prior, d, ud)
+    Wp, Up, bp = update.extract_W_weights(Wp_mu_prior, d, ud)
+
+print('h0')    
+print(h0)
+if T_check>1:
+    Ezi, Ezr, Ev, Eh, Ey = gen.stoch_GRU_step_mean(h0, u[0,:,0],
+                                                   Wz, Uz, bz.reshape(d),
+                                                   Wr, Ur, br.reshape(d),
+                                                   Wp, Up, bp.reshape(d), 0, 0)
+    for t in range(1,T_check-1):
+        Ezi, Ezr, Ev, Eh, Ey = gen.stoch_GRU_step_mean(Eh, u[t,:,0],
+                                                   Wz, Uz, bz.reshape(d),
+                                                   Wr, Ur, br.reshape(d),
+                                                   Wp, Up, bp.reshape(d), 0, 0)
+        print(t)
+    h0 = Eh
+
+print('h0')
+print(h0)
+'''
+'''        
+bin_vec = plot_dist.get_binary()
+x = np.linspace(-2,2,1000)
+
+
+mix_pdf, mix_mean, pv_mean, pz, pr = plot_dist.get_likelihood(x,
+                    bin_vec, h0, var,
+                     Wz, Uz, bz.reshape(d),
+                     Wr, Ur, br.reshape(d),
+                     Wp, Up, bp.reshape(d), u[T_check-1,:,0])
+'''
+
+'''
+print('mix_mean')
+print(mix_mean)
+print('pv_mean')
+print(pv_mean)
+print('pz')
+print(pz)
+print('pr')
+print(pr)
+'''
+
+'''
+plt.plot(x, mix_pdf, 'r', label='pdf')
+plt.hist(h_samples_vec[:,0].reshape(N-N_burn-1), bins=100, density=True)
+plt.xlabel('h_t')
+plt.ylabel('P(h_t|h_{t-1})')
+plt.title('Gibbs: T={}, T_check={}, N={}, Var={}'.format(
+    T,T_check,N,var))
+plt.legend()
 plt.show()
 '''
 
+
+M=10000
+
+z_vec = np.zeros((M,d))
+r_vec = np.zeros((M,d))
+v_vec = np.zeros((M,d))
+h_vec = np.zeros((M,d))
+
+if train_weights == True:
+    Wz, Uz, bz = update.extract_W_weights(Wz_mu_prior, d, ud)
+    Wr, Ur, br = update.extract_W_weights(Wr_mu_prior, d, ud)
+    Wp, Up, bp = update.extract_W_weights(Wp_mu_prior, d, ud)
+
+
+for i in range(0,M):
+    h = h0
+    for t in range(0,T_check):
+        z, r, v, h, y = gen.stoch_GRU_step(np.diag(1/inv_var), h, u[t,:,0],
+                                       Wz, Uz, bz.reshape(d),
+                                       Wr, Ur, br.reshape(d),
+                                       Wp, Up, bp.reshape(d), 0, 0)
+
+    z_vec[i,:] = z
+    r_vec[i,:] = r
+    v_vec[i,:] = v
+    h_vec[i,:] = h
+
+
+
+#plt.plot(x, mix_pdf, 'r', label='pdf')
+plt.hist(h_samples_vec[:,d_check].reshape(N-N_burn-1), bins=100, density=True)
+plt.hist(h_vec[:,d_check], bins=100, histtype='step',color='r', density=True, label='prior')
+plt.xlabel('h_t')
+plt.ylabel('P(h_t|h_{t-1})')
+plt.title('Gen: T={}, T_check={}, d_check={}, N={}, Var={}'.format(
+    T,T_check,d_check,N,var))
+plt.legend()
+plt.show()
+    
+
+'''
+plt.plot(x, mix_pdf, 'r', label='pdf')
+plt.hist(h_vec, bins=100, density=True)
+plt.xlabel('h_t')
+plt.ylabel('P(h_t|h_{t-1})')
+plt.title('Samples from  Generative function')
+plt.legend()
+plt.show()
+'''

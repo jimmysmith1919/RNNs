@@ -25,8 +25,29 @@ def stoch_GRU_step_mean(h_0, u, Wi, Ui, bi, Wr, Ur, br, Wp, Up, bp, Wy, by):
     Ev = expit(2*fp)
 
     Eh = (1-Ezi)*h_0 + Ezi*(2*Ev-1)
-    Ey = Wy @ Eh + by
+    Ey = 0#Wy @ Eh + by
     return Ezi, Ezr, Ev, Eh, Ey
+
+def stoch_GRU_step(Sigma,h_0, u, Wi, Ui, bi, Wr, Ur, br, Wp, Up, bp, Wy, by):
+    fi = Wi @ h_0 + Ui @ u + bi
+    fr = Wr @ h_0 + Ur @ u + br
+
+    Ezi = expit(fi)
+    Ezr = expit(fr)
+    
+    i = np.random.binomial(1, Ezi)
+    r = np.random.binomial(1, Ezr)
+    
+    fp = Wp @ (r*h_0) + Up @ u + bp
+    Ev = expit(2*fp)
+    v = np.random.binomial(1, Ev)
+
+    Eh = (1-i)*h_0 + i*(2*v-1)
+    h = np.random.multivariate_normal(Eh, Sigma)
+    
+    Ey = 0#Wy @ Eh + by
+    y=Ey #need to fix
+    return i, r, v, h, y
     
 
 def generate_rec_inp(func, steps, h_0, u, 
