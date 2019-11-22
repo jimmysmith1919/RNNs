@@ -1,6 +1,6 @@
 import numpy as np
 import var_updates as update
-import test6_build as build
+import test7_build as build
 import generate_GRU as gen
 import plot_dist as plot_dist
 from scipy.special import expit
@@ -11,23 +11,64 @@ import sys
 #print(seed)
 np.random.seed(60808)
 
-T=4
-d=3
-ud = 2
+T=10
+d=4
+ud = 3
+yd = 3
 h0 = 0*np.ones(d)
 u = np.random.uniform(-1,1,size=(T,ud,1))
 var=.1
 inv_var = np.ones(d)*1/var
 
+var_y = .1
+Sigma_y = var_y*np.identity(yd)
+Sigma_y_inv = 1/var_y*np.identity(yd)
 
 #Initialize weights
-Sigma_theta = np.ones((d,d+ud+1))*(1/3)**2
+theta_var = (1/3)**2
+Sigma_theta = np.ones((d,d+ud+1))*theta_var
+
+theta_y_var = (1/3**2)
+Sigma_y_theta = np.ones((yd,d+1))*theta_y_var
 
 L=-.9
 U= .9
 Wz_bar,Wz,Uz,bz,Wz_mu_prior = update.init_weights(L,U, Sigma_theta, d, ud)
 Wr_bar,Wr,Ur,br,Wr_mu_prior  = update.init_weights(L,U, Sigma_theta, d, ud)
 Wp_bar,Wp,Up,bp,Wp_mu_prior  = update.init_weights(L,U, Sigma_theta, d, ud)
+
+Wy_bar,Wy,_,by,Wy_mu_prior  = update.init_weights(L,U, Sigma_y_theta, d, 0)
+
+
+### Get synthetic y's #################
+M=10000
+
+y_vec = np.zeros((T,yd,1))
+
+Wzy, Uzy, bzy = update.extract_W_weights(Wz_mu_prior, d, ud)
+Wry, Ury, bry = update.extract_W_weights(Wr_mu_prior, d, ud)
+Wpy, Upy, bpy = update.extract_W_weights(Wp_mu_prior, d, ud)
+Wyy, _, byy = update.extract_W_weights(Wy_mu_prior, d, 0)
+
+
+for i in range(0,M):
+    h = h0
+    for t in range(0,T):
+        z, r, v, h, y = gen.stoch_GRU_step(np.diag(1/inv_var), h, u[t,:,0],
+                                       Wzy, Uzy, bzy.reshape(d),
+                                       Wry, Ury, bry.reshape(d),
+                                       Wpy, Upy, bpy.reshape(d),
+                                           Sigma_y, Wyy, byy.reshape(yd))
+        y_vec[t,:,0] += y
+    
+
+y = y_vec/M
+
+
+Wy, _, by = update.extract_W_weights(Wy_mu_prior, d, 0)
+
+###############################################
+
 
 ##TESTING###
 Wz = np.random.uniform(3,4, size=(d,d))
@@ -78,8 +119,8 @@ Wp_bar_samples = 0
 
 N_burn = int(.4*N)
 
-T_check = 4
-d_check = 2
+T_check = 10
+d_check = 3
 h_samples_vec = np.zeros((N-N_burn-1,d))
 
 
@@ -114,10 +155,12 @@ for k in range(0,N):
 
     
     #Update hs
-    prec = build.build_prec_x(inv_var, Wz, omega_z, z, Wr, omega_r, r,
+    prec = build.build_prec_x(inv_var, Sigma_y_inv, Wy,
+                              Wz, omega_z, z, Wr, omega_r, r,
                               Wp, gamma, v, T, d)
-    prec_muT = build.build_prec_muT(h0, u, inv_var, z, omega_z,
-                                    Wz, Uz, bz,r, omega_r, Wr, Ur, br,
+    prec_muT = build.build_prec_muT(h0, u, inv_var, y, Sigma_y_inv, Wy, by,
+                                    z, omega_z, Wz, Uz, bz,
+                                    r, omega_r, Wr, Ur, br,
                                     v, Wp, Up, bp, gamma, T, d)
     mu, covar = update.update_normal_dim(prec,prec_muT)
 
@@ -177,10 +220,24 @@ print('EWp_bar')
 print(np.round(EWp_bar,4))
 
 
+print('y')
+print(y)
+
+print('Wy')
+print(Wy)
+
+print('by')
+print(by)
+
+a = Wy @ Eh[1:] + by
+print('y_approx')
+print(a)
+
+
 '''
 #Generate priors
 
-M = 100000#N
+M = 10000#N
 h_samples = 0
 z_samples = 0
 r_samples = 0
@@ -233,7 +290,7 @@ for n in range(0,M):
                                                    Uz,bz[:,0],
                                                    Wr, Ur, br[:,0],
                                                    Wp, Up, bp[:,0],
-                                                   0, 0)
+                                                   Sigma_y, Wy, by.reshape(yd))
     
     
     for i in range(1,T+1):
@@ -288,8 +345,12 @@ print('EWr_bar prior')
 print(np.round(EWr_bar,4))
 print('EWp_bar prior')
 print(np.round(EWp_bar,4))
-#print('Wz_bar_prior_mean')
-#print(np.round(Wz_mu_prior,4))
+print('Wz_bar_prior_mean')
+print(np.round(Wz_mu_prior,4))
+print('Wr_bar_prior_mean')
+print(np.round(Wr_mu_prior,4))
+print('Wp_bar_prior_mean')
+print(np.round(Wp_mu_prior,4))
 '''
 
 '''
@@ -368,9 +429,10 @@ for i in range(0,M):
     h = h0
     for t in range(0,T_check):
         z, r, v, h, y = gen.stoch_GRU_step(np.diag(1/inv_var), h, u[t,:,0],
-                                       Wz, Uz, bz.reshape(d),
-                                       Wr, Ur, br.reshape(d),
-                                       Wp, Up, bp.reshape(d), 0, 0)
+                                           Wz, Uz, bz.reshape(d),
+                                           Wr, Ur, br.reshape(d),
+                                           Wp, Up, bp.reshape(d),
+                                           Sigma_y, Wy, by.reshape(yd))
 
     z_vec[i,:] = z
     r_vec[i,:] = r
@@ -384,8 +446,8 @@ plt.hist(h_samples_vec[:,d_check].reshape(N-N_burn-1), bins=100, density=True)
 plt.hist(h_vec[:,d_check], bins=100, histtype='step',color='r', density=True, label='prior')
 plt.xlabel('h_t')
 plt.ylabel('P(h_t|h_{t-1})')
-plt.title('Gen: T={}, T_check={}, d_check={}, N={}, Var={}'.format(
-    T,T_check,d_check,N,var))
+plt.title('Gen: T={}, T_check={}, d_check={}, N={}, Var={}, var_y={}'.format(
+    T,T_check,d_check,N,var, var_y))
 plt.legend()
 plt.show()
     

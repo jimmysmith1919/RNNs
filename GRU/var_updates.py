@@ -52,7 +52,7 @@ def sample_weights(W_covar, W_mu, d, ud):
 def extract_W_weights(W_bar, d, ud):
     W = W_bar[:,:d]
     U = W_bar[:,d:d+ud]
-    b = W_bar[:,-1].reshape(d,1)
+    b = W_bar[:,-1].reshape(len(W_bar[:,-1]),1)
     return W, U, b
 
 def Wbar_update(z,omega,x,xxT,Sigma_inv,mu,T,d,ud):
@@ -63,9 +63,11 @@ def Wbar_update(z,omega,x,xxT,Sigma_inv,mu,T,d,ud):
 
 
 def init_weights(L,U, Sigma_theta, d, ud):
-    W_mu_prior = np.random.uniform(L,U,size = (d,d+ud+1))
+    r = len(Sigma_theta[:,0])
+    W_mu_prior = np.random.uniform(L,U,size = (r,d+ud+1))
     W_bar = np.random.normal(W_mu_prior, Sigma_theta)
     W,U,b = extract_W_weights(W_bar, d, ud)
     return W_bar, W, U, b, W_mu_prior
+
     
 

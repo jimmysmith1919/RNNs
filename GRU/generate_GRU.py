@@ -25,10 +25,11 @@ def stoch_GRU_step_mean(h_0, u, Wi, Ui, bi, Wr, Ur, br, Wp, Up, bp, Wy, by):
     Ev = expit(2*fp)
 
     Eh = (1-Ezi)*h_0 + Ezi*(2*Ev-1)
-    Ey = 0#Wy @ Eh + by
+    Ey = Wy @ Eh + by
     return Ezi, Ezr, Ev, Eh, Ey
 
-def stoch_GRU_step(Sigma,h_0, u, Wi, Ui, bi, Wr, Ur, br, Wp, Up, bp, Wy, by):
+def stoch_GRU_step(Sigma,h_0, u, Wi, Ui, bi, Wr, Ur, br, Wp, Up, bp,
+                   Sigma_y, Wy, by):
     fi = Wi @ h_0 + Ui @ u + bi
     fr = Wr @ h_0 + Ur @ u + br
 
@@ -45,8 +46,8 @@ def stoch_GRU_step(Sigma,h_0, u, Wi, Ui, bi, Wr, Ur, br, Wp, Up, bp, Wy, by):
     Eh = (1-i)*h_0 + i*(2*v-1)
     h = np.random.multivariate_normal(Eh, Sigma)
     
-    Ey = 0#Wy @ Eh + by
-    y=Ey #need to fix
+    Ey = Wy @ h + by
+    y= np.random.multivariate_normal(Ey, Sigma_y)
     return i, r, v, h, y
     
 
