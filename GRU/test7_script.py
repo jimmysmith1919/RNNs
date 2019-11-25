@@ -1,3 +1,4 @@
+
 import numpy as np
 import var_updates as update
 import test7_build as build
@@ -11,13 +12,13 @@ import sys
 #print(seed)
 np.random.seed(60808)
 
-T=10
-d=4
-ud = 3
-yd = 3
+T=5
+d=3
+ud = 2
+yd = 2
 h0 = 0*np.ones(d)
 u = np.random.uniform(-1,1,size=(T,ud,1))
-var=.1
+var=.2
 inv_var = np.ones(d)*1/var
 
 var_y = .1
@@ -33,6 +34,7 @@ Sigma_y_theta = np.ones((yd,d+1))*theta_y_var
 
 L=-.9
 U= .9
+
 Wz_bar,Wz,Uz,bz,Wz_mu_prior = update.init_weights(L,U, Sigma_theta, d, ud)
 Wr_bar,Wr,Ur,br,Wr_mu_prior  = update.init_weights(L,U, Sigma_theta, d, ud)
 Wp_bar,Wp,Up,bp,Wp_mu_prior  = update.init_weights(L,U, Sigma_theta, d, ud)
@@ -40,15 +42,45 @@ Wp_bar,Wp,Up,bp,Wp_mu_prior  = update.init_weights(L,U, Sigma_theta, d, ud)
 Wy_bar,Wy,_,by,Wy_mu_prior  = update.init_weights(L,U, Sigma_y_theta, d, 0)
 
 
+
+
+'''
+##TESTING###
+Wz = np.random.uniform(3,4, size=(d,d))
+Uz = np.random.uniform(3,4, size=(d,ud))
+bz = np.random.uniform(3,4, size = (d,1))
+
+Wr = np.random.uniform(3,4, size=(d,d))
+Ur = np.random.uniform(3,4, size=(d,ud))
+br = np.random.uniform(3,4, size = (d,1))
+
+Wp = np.random.uniform(3,4, size=(d,d))
+Up = np.random.uniform(3,4, size=(d,ud))
+bp = np.random.uniform(3,4, size = (d,1))
+
+Wy = np.random.uniform(3,4, size=(yd,d))
+by = np.random.uniform(3,4, size = (yd,1))
+'''
+
+train_weights = True
+
+
 ### Get synthetic y's #################
-M=10000
+M=10
 
 y_vec = np.zeros((T,yd,1))
 
-Wzy, Uzy, bzy = update.extract_W_weights(Wz_mu_prior, d, ud)
-Wry, Ury, bry = update.extract_W_weights(Wr_mu_prior, d, ud)
-Wpy, Upy, bpy = update.extract_W_weights(Wp_mu_prior, d, ud)
+
+Wz_bar_true = np.random.uniform(L,U,size = (d,d+ud+1))
+Wr_bar_true = np.random.uniform(L,U,size = (d,d+ud+1))
+Wp_bar_true = np.random.uniform(L,U,size = (d,d+ud+1))
+#Wy_bar_true = np.random.uniform(
+
+Wzy, Uzy, bzy = update.extract_W_weights(Wz_bar_true, d, ud)
+Wry, Ury, bry = update.extract_W_weights(Wr_bar_true, d, ud)
+Wpy, Upy, bpy = update.extract_W_weights(Wp_bar_true, d, ud)
 Wyy, _, byy = update.extract_W_weights(Wy_mu_prior, d, 0)
+
 
 
 for i in range(0,M):
@@ -65,26 +97,10 @@ for i in range(0,M):
 y = y_vec/M
 
 
-Wy, _, by = update.extract_W_weights(Wy_mu_prior, d, 0)
 
 ###############################################
 
 
-##TESTING###
-Wz = np.random.uniform(3,4, size=(d,d))
-Uz = np.random.uniform(3,4, size=(d,ud))
-bz = np.random.uniform(3,4, size = (d,1))
-
-Wr = np.random.uniform(3,4, size=(d,d))
-Ur = np.random.uniform(3,4, size=(d,ud))
-br = np.random.uniform(3,4, size = (d,1))
-
-Wp = np.random.uniform(3,4, size=(d,d))
-Up = np.random.uniform(3,4, size=(d,ud))
-bp = np.random.uniform(3,4, size = (d,1))
-
-
-train_weights = True
 
 
 #Initialize h
@@ -116,11 +132,12 @@ v_samples =0
 Wz_bar_samples = 0
 Wr_bar_samples = 0
 Wp_bar_samples = 0
+Wy_bar_samples = 0
 
 N_burn = int(.4*N)
 
-T_check = 10
-d_check = 3
+T_check = 3 
+d_check = 1
 h_samples_vec = np.zeros((N-N_burn-1,d))
 
 
@@ -168,6 +185,15 @@ for k in range(0,N):
     h = h.reshape(T,d,1)
     h = np.concatenate((h0.reshape(1,d,1), h), axis=0)
 
+
+    #Sample y's, for Testing purposes
+    Ey = Wy @ h[1:] + by
+
+    Sig_y_diag = np.diag(Sigma_y).reshape(yd,1)
+    Sig_y_in = np.ones((T,yd,1))*Sig_y_diag
+    
+    y= np.random.normal(Ey, np.sqrt(Sig_y_in))
+    
     if train_weights == True:
         #Update Weights
         x = np.concatenate((h[:-1,:,:],u, np.ones((T,1,1))), axis=1)
@@ -182,7 +208,14 @@ for k in range(0,N):
         Wp_bar, Wp, Up, bp = update.Wbar_update(v, gamma, rx, rxrxT,
                                                 1/Sigma_theta,
                                                 Wp_mu_prior,T,d,ud)
-
+        
+        #Update y weights
+        x = np.concatenate((h[1:,:,:], np.ones((T,1,1))), axis=1)
+        xxT = (x[...,None]*x[:,None,:]).reshape(T,d+1,d+1)
+        Wy_bar, Wy, by = update.Wbar_y_update(x,xxT,y, Sigma_y_inv,
+                                       1/Sigma_y_theta, Wy_mu_prior,T,d,yd)
+        
+        
         
     if k > N_burn:
         h_samples_vec[k-N_burn-1,:] = h[T_check,:,0]
@@ -193,6 +226,7 @@ for k in range(0,N):
         Wz_bar_samples += Wz_bar
         Wr_bar_samples += Wr_bar
         Wp_bar_samples += Wp_bar
+        Wy_bar_samples += Wy_bar
     print(k)
 
     
@@ -204,6 +238,7 @@ Ev = v_samples/(N-N_burn-1)
 EWz_bar = Wz_bar_samples/(N-N_burn-1)
 EWr_bar = Wr_bar_samples/(N-N_burn-1)
 EWp_bar = Wp_bar_samples/(N-N_burn-1)
+EWy_bar = Wy_bar_samples/(N-N_burn-1)
 print('Eh')
 print(Eh)
 print('Ez')
@@ -218,22 +253,76 @@ print('EWr_bar')
 print(np.round(EWr_bar,4))
 print('EWp_bar')
 print(np.round(EWp_bar,4))
+print('EWy_bar')
+print(np.round(EWy_bar,4))
 
 
-print('y')
-print(y)
+print('Wz_bar_prior_mean')
+print(np.round(Wz_mu_prior,4))
+print('Wr_bar_prior_mean')
+print(np.round(Wr_mu_prior,4))
+print('Wp_bar_prior_mean')
+print(np.round(Wp_mu_prior,4))
+print('Wy_mu_prior_mean')
+print(Wy_mu_prior)
 
-print('Wy')
-print(Wy)
+#print('Wz_bar_true')
+#print(Wz_bar_true)
+#print('Wr_bar_true')
+#print(Wr_bar_true)
+#print('Wp_bar_true')
+#print(Wp_bar_true)
 
-print('by')
-print(by)
 
+#print('y')
+#print(y)
+
+'''
+Wy, _, by = update.extract_W_weights(EWy_bar, d, 0)
+'''
+
+#print('Wy_prior_mean')
+#print(Wyy)
+
+#print('by_prior_mean')
+#print(byy)
+
+'''
 a = Wy @ Eh[1:] + by
-print('y_approx')
+print('y_approx_learned_weights')
+print(a)
+'''
+'''
+a = Wyy @ Eh[1:] + byy
+print('y_approx_true_weights')
 print(a)
 
+y_vec = np.zeros((T,yd,1))
 
+EWz, EUz, Ebz = update.extract_W_weights(EWz_bar, d, ud)
+EWr, EUr, Ebr = update.extract_W_weights(EWr_bar, d, ud)
+EWp, EUp, Ebp = update.extract_W_weights(EWp_bar, d, ud)
+
+
+M= 10000
+for i in range(0,M):
+    h = h0
+    for t in range(0,T):
+        z, r, v, h, y = gen.stoch_GRU_step(np.diag(1/inv_var), h, u[t,:,0],
+                                       EWz, EUz, Ebz.reshape(d),
+                                       EWr, EUr, Ebr.reshape(d),
+                                       EWp, EUp, Ebp.reshape(d),
+                                           Sigma_y, Wyy, byy.reshape(yd))
+        y_vec[t,:,0] += y
+    
+
+b = y_vec/M
+
+print('y_approx_learn_weights')
+print(b)
+'''
+
+      
 '''
 #Generate priors
 
@@ -419,6 +508,7 @@ r_vec = np.zeros((M,d))
 v_vec = np.zeros((M,d))
 h_vec = np.zeros((M,d))
 
+
 if train_weights == True:
     Wz, Uz, bz = update.extract_W_weights(Wz_mu_prior, d, ud)
     Wr, Ur, br = update.extract_W_weights(Wr_mu_prior, d, ud)
@@ -439,6 +529,29 @@ for i in range(0,M):
     v_vec[i,:] = v
     h_vec[i,:] = h
 
+
+
+'''
+EWz, EUz, Ebz = update.extract_W_weights(EWz_bar, d, ud)
+EWr, EUr, Ebr = update.extract_W_weights(EWr_bar, d, ud)
+EWp, EUp, Ebp = update.extract_W_weights(EWp_bar, d, ud)
+
+
+
+for i in range(0,M):
+    h = h0
+    for t in range(0,T_check):
+        z, r, v, h, y = gen.stoch_GRU_step(np.diag(1/inv_var), h, u[t,:,0],
+                                           EWz, EUz, Ebz.reshape(d),
+                                           EWr, EUr, Ebr.reshape(d),
+                                           EWp, EUp, Ebp.reshape(d),
+                                           Sigma_y, Wyy, byy.reshape(yd))
+
+    z_vec[i,:] = z
+    r_vec[i,:] = r
+    v_vec[i,:] = v
+    h_vec[i,:] = h
+'''
 
 
 #plt.plot(x, mix_pdf, 'r', label='pdf')

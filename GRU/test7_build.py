@@ -8,6 +8,8 @@ def build_prec_x(inv_var, Sigma_y_inv, Wy, Wz, pg_z, z, Wr, pg_r, r, Wp, pg_v, v
     for t in range(0,T-1):
         #Diagonal (Block)
         prec[t*d:t*d+d,t*d:t*d+d] = Wy.T @ Sigma_y_inv @ Wy
+
+        
         
         prec[t*d:t*d+d,t*d:t*d+d]+=Sigma_inv+np.outer(1-z[t+1,:,0],
                                                      1-z[t+1,:,0])*Sigma_inv
