@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.special import expit
 from scipy.stats import norm
+import scipy.integrate as integrate
 import sys
 
 
@@ -22,8 +23,7 @@ def get_binary():
 bin_vec = get_binary()
 
 
-#def get_binary_multi(d):
-#    vec = np.zeros(d,)
+
 
 def bern_prob(p,x):
     return (p**x)*(1-p)**(1-x)
@@ -75,4 +75,36 @@ def get_likelihood(x, bin_vec, h_minus, var_h, Wz, Uz, bz,
     pv_mean += pv*prob_r
 
     
-    return sum_L, sum_mean, pv_mean, pz, pr 
+    return sum_L, sum_mean, pv_mean, pz, pr
+
+
+
+
+
+
+def y_prior(x, y, Wy, by, var_y):
+    mean_y = Wy*x + by
+    return norm.pdf(y, mean_y[0,0], np.sqrt(var_y))
+
+def y_prior2(x, y, Wy, by, var_y):
+    mean_y = Wy*x + by
+    return norm.pdf(y, mean_y[0,:], np.sqrt(var_y))
+
+def y_h_pdf(x, bin_vec, h_minus, var_h, Wz, Uz, bz,
+                   Wr, Ur, br, Wp, Up, bp, u, y, Wy, by, var_y):
+    like,_,_,_,_ = get_likelihood(x, bin_vec, h_minus,
+                                  var_h, Wz, Uz,  bz, Wr, Ur, br,
+                                  Wp, Up, bp, u)
+    y_p = y_prior(x, y, Wy, by, var_y)
+    joint = like[0,0,0]*y_p[0,0,0]
+    return joint
+
+def marginal_y(bin_vec, h_minus, var_h, Wz, Uz, bz,
+                   Wr, Ur, br, Wp, Up, bp, u, y, Wy, by, var_y):
+    marg = integrate.quad(y_h_pdf, -np.inf, np.inf,
+                          args=(bin_vec, h_minus, var_h, Wz,
+                                Uz, bz, Wr, Ur, br, Wp, Up,
+                                bp, u, y, Wy, by, var_y) )
+    return marg
+
+

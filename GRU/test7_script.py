@@ -1,4 +1,3 @@
-
 import numpy as np
 import var_updates as update
 import test7_build as build
@@ -10,15 +9,15 @@ import sys
 
 #seed = np.random.randint(0,100000)
 #print(seed)
-np.random.seed(60808)
+np.random.seed(60600)
 
-T=5
-d=3
-ud = 2
-yd = 2
+T=1
+d=1
+ud = 1
+yd = 1
 h0 = 0*np.ones(d)
 u = np.random.uniform(-1,1,size=(T,ud,1))
-var=.2
+var=.1
 inv_var = np.ones(d)*1/var
 
 var_y = .1
@@ -66,7 +65,7 @@ train_weights = True
 
 
 ### Get synthetic y's #################
-M=10
+M=10000
 
 y_vec = np.zeros((T,yd,1))
 
@@ -74,7 +73,7 @@ y_vec = np.zeros((T,yd,1))
 Wz_bar_true = np.random.uniform(L,U,size = (d,d+ud+1))
 Wr_bar_true = np.random.uniform(L,U,size = (d,d+ud+1))
 Wp_bar_true = np.random.uniform(L,U,size = (d,d+ud+1))
-#Wy_bar_true = np.random.uniform(
+#Wy_bar_true = np.random.uniform(L,U,size = 
 
 Wzy, Uzy, bzy = update.extract_W_weights(Wz_bar_true, d, ud)
 Wry, Ury, bry = update.extract_W_weights(Wr_bar_true, d, ud)
@@ -136,8 +135,8 @@ Wy_bar_samples = 0
 
 N_burn = int(.4*N)
 
-T_check = 3 
-d_check = 1
+T_check = 1 
+d_check = 0
 h_samples_vec = np.zeros((N-N_burn-1,d))
 
 
@@ -185,7 +184,7 @@ for k in range(0,N):
     h = h.reshape(T,d,1)
     h = np.concatenate((h0.reshape(1,d,1), h), axis=0)
 
-
+    '''
     #Sample y's, for Testing purposes
     Ey = Wy @ h[1:] + by
 
@@ -193,7 +192,9 @@ for k in range(0,N):
     Sig_y_in = np.ones((T,yd,1))*Sig_y_diag
     
     y= np.random.normal(Ey, np.sqrt(Sig_y_in))
-    
+    '''
+
+
     if train_weights == True:
         #Update Weights
         x = np.concatenate((h[:-1,:,:],u, np.ones((T,1,1))), axis=1)
@@ -266,12 +267,12 @@ print(np.round(Wp_mu_prior,4))
 print('Wy_mu_prior_mean')
 print(Wy_mu_prior)
 
-#print('Wz_bar_true')
-#print(Wz_bar_true)
-#print('Wr_bar_true')
-#print(Wr_bar_true)
-#print('Wp_bar_true')
-#print(Wp_bar_true)
+print('Wz_bar_true')
+print(Wz_bar_true)
+print('Wr_bar_true')
+print(Wr_bar_true)
+print('Wp_bar_true')
+print(Wp_bar_true)
 
 
 #print('y')
@@ -466,7 +467,40 @@ if T_check>1:
 print('h0')
 print(h0)
 '''
+
+bin_vec = plot_dist.get_binary()
+x = np.linspace(-2,2,1000)
+
+marg_y = plot_dist.marginal_y(bin_vec, h0, var, Wzy, Uzy, bzy.reshape(d),
+                             Wry, Ury, bry.reshape(d), Wpy, Upy,
+                              bpy.reshape(d),
+                              u, y, Wyy, byy.reshape(yd), var_y)
+
+
+h_like,_,_,_,_ = plot_dist.get_likelihood(x,
+                    bin_vec, h0, var,
+                     Wzy, Uzy, bzy.reshape(d),
+                     Wry, Ury, bry.reshape(d),
+                     Wpy, Upy, bpy.reshape(d), u[T_check-1,:,0])
+
+
+y_p = plot_dist.y_prior2(x, y, Wyy, byy, var_y)
+yp = y_p[0,0,:]
+
+post = (h_like*yp)/marg_y[0]
+
+plt.plot(x,post,'r',label = 'post')
+plt.hist(h_samples_vec[:,d_check].reshape(N-N_burn-1), bins=100, density=True)
+plt.xlabel('h_t')
+plt.ylabel('P(h_1|y_1)')
+plt.title('Gen: T={}, T_check={}, d_check={}, N={}, Var={}, var_y={}'.format(
+    T,T_check,d_check,N,var, var_y))
+plt.legend()
+plt.show()
+
+
 '''        
+
 bin_vec = plot_dist.get_binary()
 x = np.linspace(-2,2,1000)
 
@@ -500,8 +534,8 @@ plt.legend()
 plt.show()
 '''
 
-
-M=10000
+'''
+M=10
 
 z_vec = np.zeros((M,d))
 r_vec = np.zeros((M,d))
@@ -528,7 +562,7 @@ for i in range(0,M):
     r_vec[i,:] = r
     v_vec[i,:] = v
     h_vec[i,:] = h
-
+'''
 
 
 '''
@@ -553,7 +587,7 @@ for i in range(0,M):
     h_vec[i,:] = h
 '''
 
-
+'''
 #plt.plot(x, mix_pdf, 'r', label='pdf')
 plt.hist(h_samples_vec[:,d_check].reshape(N-N_burn-1), bins=100, density=True)
 plt.hist(h_vec[:,d_check], bins=100, histtype='step',color='r', density=True, label='prior')
@@ -563,7 +597,7 @@ plt.title('Gen: T={}, T_check={}, d_check={}, N={}, Var={}, var_y={}'.format(
     T,T_check,d_check,N,var, var_y))
 plt.legend()
 plt.show()
-    
+''' 
 
 '''
 plt.plot(x, mix_pdf, 'r', label='pdf')
