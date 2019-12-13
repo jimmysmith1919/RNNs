@@ -9,7 +9,8 @@ import sys
 
 #seed = np.random.randint(0,100000)
 #print(seed)
-np.random.seed(70812)
+#np.random.seed(70815)
+np.random.seed(70815)
 
 
 T=1
@@ -74,28 +75,26 @@ M=1000
 
 y_vec = np.zeros((T,yd,1))
 
-L=.3
-U=.4
-
-Wz_bar_true = Wz_mu_prior #np.random.uniform(L,U,size = (d,d+ud+1))
-Wr_bar_true = Wr_mu_prior  #np.random.uniform(L,U,size = (d,d+ud+1))
-Wp_bar_true = Wp_mu_prior #np.random.uniform(L,U,size = (d,d+ud+1))
-Wy_bar_true = Wy_mu_prior #np.random.uniform(L,U,size = (d,yd+1))
+'''
+Wz_bar_true = np.random.uniform(L,U,size = (d,d+ud+1))
+Wr_bar_true = np.random.uniform(L,U,size = (d,d+ud+1))
+Wp_bar_true = np.random.uniform(L,U,size = (d,d+ud+1))
+#Wy_bar_true = np.random.uniform(L,U,size = (d,yd+1))
 
 
 Wzy, Uzy, bzy = update.extract_W_weights(Wz_bar_true, d, ud)
 Wry, Ury, bry = update.extract_W_weights(Wr_bar_true, d, ud)
 Wpy, Upy, bpy = update.extract_W_weights(Wp_bar_true, d, ud)
-Wyy, _, byy = update.extract_W_weights(Wy_bar_true, d, 0)
-#Wyy, _, byy = update.extract_W_weights(Wy_mu_prior, d, 0)
-
-
+#Wyy, _, byy = update.extract_W_weights(Wy_bar_true, d, 0)
+Wyy, _, byy = update.extract_W_weights(Wy_mu_prior, d, 0)
 '''
+
+
 Wzy, Uzy, bzy = update.extract_W_weights(Wz_mu_prior, d, ud)
 Wry, Ury, bry = update.extract_W_weights(Wr_mu_prior, d, ud)
 Wpy, Upy, bpy = update.extract_W_weights(Wp_mu_prior, d, ud)
 Wyy, _, byy = update.extract_W_weights(Wy_mu_prior, d, 0)
-'''
+
 
 
 for i in range(0,M):
@@ -234,6 +233,11 @@ for k in range(0,N):
         #Update y weights
         x = np.concatenate((h[1:,:,:], np.ones((T,1,1))), axis=1)
         xxT = (x[...,None]*x[:,None,:]).reshape(T,d+1,d+1)
+        
+        #sum_test = test_Wbar_y(y, x, W_bar_y, Sigma_y_inv,
+        #                       1/Sigma_y_theta_inv, mu_prior, T)
+        #print(sum_test)
+        #sys.exit()
         Wy_bar, Wy, by = update.Wbar_y_update(x,xxT,y, Sigma_y_inv,
                                        1/Sigma_y_theta, Wy_mu_prior,T,d,yd)
         
@@ -288,15 +292,14 @@ print(np.round(Wp_mu_prior,4))
 print('Wy_mu_prior_mean')
 print(Wy_mu_prior)
 
+'''
 print('Wz_bar_true')
 print(Wz_bar_true)
 print('Wr_bar_true')
 print(Wr_bar_true)
 print('Wp_bar_true')
 print(Wp_bar_true)
-print('Wy_bar_true')
-print(Wy_bar_true)
-
+'''
 
 #print('y')
 #print(y)

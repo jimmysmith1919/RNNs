@@ -96,15 +96,23 @@ def y_h_pdf(x, bin_vec, h_minus, var_h, Wz, Uz, bz,
                                   var_h, Wz, Uz,  bz, Wr, Ur, br,
                                   Wp, Up, bp, u)
     y_p = y_prior(x, y, Wy, by, var_y)
+    
+    #joint = like[0,0,0]*y_p
     joint = like[0,0,0]*y_p[0,0,0]
     return joint
 
-def marginal_y(bin_vec, h_minus, var_h, Wz, Uz, bz,
-                   Wr, Ur, br, Wp, Up, bp, u, y, Wy, by, var_y):
+def marginal_y(y, bin_vec, h_minus, var_h, Wz, Uz, bz,
+                   Wr, Ur, br, Wp, Up, bp, u,Wy, by, var_y):
     marg = integrate.quad(y_h_pdf, -np.inf, np.inf,
                           args=(bin_vec, h_minus, var_h, Wz,
                                 Uz, bz, Wr, Ur, br, Wp, Up,
                                 bp, u, y, Wy, by, var_y) )
-    return marg
+    return marg[0]
 
 
+def int_y(bin_vec, h_minus, var_h, Wz, Uz, bz,
+                   Wr, Ur, br, Wp, Up, bp, u,Wy, by, var_y):
+    y_int = integrate.quad(marginal_y, -np.inf, np.inf,
+                           args = (bin_vec, h_minus, var_h, Wz, Uz, bz,
+                                   Wr, Ur, br, Wp, Up, bp, u, Wy, by, var_y))
+    return y_int

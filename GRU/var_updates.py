@@ -61,6 +61,13 @@ def get_Wbar_y_params(x,xxT,y,Sigma_y_inv,Sigma_y_theta_inv,mu_prior,T,d,yd):
     W_mu = (W_covar @ rhs)
     return W_covar, W_mu
     
+def test_Wbar_y(y,x,W_bar_y, Sigma_y_inv, Sigma_y_theta_inv, mu_prior, T):
+    sum_p = 0
+    for t in range(0,T):
+        sum_p += -1/2*( (y[t,0,0]-W_bar_y @ x[t,0,0]).T @
+                        Sigma_y_inv @ (y[t,0,0]-W_bar_y @ x[t,0,0]) )
+
+    return sum_p
 
 
 def sample_weights(W_covar, W_mu, d, ud):
@@ -95,7 +102,7 @@ def Wbar_y_update(x,xxT,y,Sigma_y_inv, Sigma_y_theta_inv, mu_prior,T,d,yd):
 def init_weights(L,U, Sigma_theta, d, ud):
     r = len(Sigma_theta[:,0])
     W_mu_prior = np.random.uniform(L,U,size = (r,d+ud+1))
-    W_bar = np.random.normal(W_mu_prior, Sigma_theta)
+    W_bar = np.random.normal(W_mu_prior, np.sqrt(Sigma_theta))
     W,U,b = extract_W_weights(W_bar, d, ud)
     return W_bar, W, U, b, W_mu_prior
 
