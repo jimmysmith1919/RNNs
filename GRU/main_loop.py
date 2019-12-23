@@ -4,8 +4,8 @@ import var_updates as update
 import build_model as build
 from scipy.special import expit
 import sys
-
-
+import  log_prob
+import scipy.integrate as integrate
 
 
 def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
@@ -14,7 +14,12 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
                Wy_mu_prior, Wz, Uz, bz, Wr, Ur, br, Wp, Up, bp, Wy, by,
                train_weights, u, y, h, r, rh, z):
 
-    h_samples_vec = np.zeros((N-N_burn-1,d))
+    h_samples_vec = np.zeros((N-N_burn-1,T,d))
+    Wz_bar_samples_vec = np.zeros((N-N_burn-1,d,d+ud+1))
+    Wr_bar_samples_vec = np.zeros((N-N_burn-1,d,d+ud+1))
+    Wp_bar_samples_vec = np.zeros((N-N_burn-1,d,d+ud+1))
+    Wy_bar_samples_vec = np.zeros((N-N_burn-1,yd,d+1))
+    
     h_samples =0
     z_samples =0
     r_samples =0
@@ -24,7 +29,14 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
     Wp_bar_samples = 0
     Wy_bar_samples = 0
 
+    Wz_bar = Wz_mu_prior
+    Wr_bar = Wr_mu_prior
+    Wp_bar = Wp_mu_prior
+    Wy_bar = Wy_mu_prior
+    
     for k in range(0,N):
+
+        
         #Update pgs
         omega_z = update.pg_update(1, h, u, Wz, Uz, bz, T, d)
         omega_r = update.pg_update(1, h, u, Wr, Ur, br, T, d)
@@ -37,6 +49,27 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         Ev = update.update_bern(fv)
         v  = np.random.binomial(1, Ev, size=(T,d,1))
     
+
+        ####
+        sig_h_inv = np.diag(inv_var)
+        #val = log_prob.log_prob_ht(h[2], h[1], z[1], v[1], sig_h_inv, d)
+
+        val = integrate.nquad(log_prob.ht_wrapper,
+                              [[-np.inf,np.inf],[-np.inf,np.inf],
+                               [-np.inf,np.inf] ], args = [h[1],
+                                                           z[2], v[2],
+                                                           sig_h_inv,
+                                                           d])
+        
+        print('h')
+        print(val)
+        sys.exit()
+        
+
+
+
+        ####
+        
         #Update Zs
         fz = build.build_z_param(h,v,inv_var.reshape(d,1), Wz, Uz, u, bz, d)
         Ez = update.update_bern(fz)
@@ -51,7 +84,7 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
 
     
         #Update hs
-        '''
+        
         J_dyn_11,J_dyn_22,J_dyn_21,J_obs,J_ini = build.build_prec_x_kalman(
             inv_var, Sigma_y_inv, Wy,
             Wz, omega_z, z, Wr, omega_r, r,
@@ -61,27 +94,36 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
             z, omega_z, Wz, Uz, bz,
             r, omega_r, Wr, Ur, br,
             v, Wp, Up, bp, gamma, T, d)
-
         
+        
+        '''
         log_Z_obs = np.zeros(T)
-        _,smoothed_mus,smoothed_Sigmas,_=messages.kalman_info_smoother(J_ini,
+
+        _,smoothed_mus,smoothed_Sigmas,off=messages.kalman_info_smoother(J_ini,
                                                                        h_ini,
                                                                        0,
                          J_dyn_11, J_dyn_21, J_dyn_22, h_dyn_1, h_dyn_2, 0,
                                        J_obs, h_obs, log_Z_obs)
-        
-        
-        
-        h = np.zeros((T,d,1))
-        for j in range(0,T):
-            h[j,:,0] = np.random.multivariate_normal(smoothed_mus[j,:],
-                                                     smoothed_Sigmas[j])
 
-        h = np.concatenate((h0.reshape(1,d,1), h), axis=0)
+        print('smoothed_mus')
+        print(smoothed_mus)
+        print('smoothed_sigmas')
+        print(smoothed_Sigmas)
+        print('off')
+        print(np.round(off, 4))
         '''
+        
+        log_Z_obs = np.zeros(T)
+        h =messages.kalman_info_sample(J_ini, h_ini, 0, J_dyn_11, J_dyn_21,
+                                       J_dyn_22, h_dyn_1, h_dyn_2, 0,
+                                       J_obs, h_obs, log_Z_obs)
+        
+        
+        h = h.reshape(T,d,1)
+        h = np.concatenate((h0.reshape(1,d,1), h), axis=0)
+        
 
-        
-        
+        '''
         prec = build.build_prec_x(inv_var, Sigma_y_inv, Wy,
                                   Wz, omega_z, z, Wr, omega_r, r,
                                   Wp, gamma, v, T, d)
@@ -93,22 +135,20 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         
         
         mu, covar = update.update_normal_dim(prec,prec_muT)
-
         
         
         h = np.random.multivariate_normal(mu[:,0],covar)
         h = h.reshape(T,d,1)
         h = np.concatenate((h0.reshape(1,d,1), h), axis=0)
-
-        
-
         '''
+        
+        
         #Sample y's, for Testing purposes                                      
         Ey = Wy @ h[1:] + by                                                   
         Sig_y_diag = np.diag(Sigma_y).reshape(yd,1)                            
         Sig_y_in = np.ones((T,yd,1))*Sig_y_diag                              
         y= np.random.normal(Ey, np.sqrt(Sig_y_in))   
-        '''
+        
 
         if train_weights == True:
         
@@ -139,16 +179,20 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
                                                   T,d,yd)
                 
         if k > N_burn:
-            h_samples_vec[k-N_burn-1,:] = h[T_check,:,0]
+            h_samples_vec[k-N_burn-1] = h[1:].reshape(T,d)
             h_samples += h
             z_samples += z
             r_samples += r
             v_samples += v
             Wz_bar_samples += Wz_bar
+            Wz_bar_samples_vec[k-N_burn-1] = Wz_bar
             Wr_bar_samples += Wr_bar
+            Wr_bar_samples_vec[k-N_burn-1] = Wr_bar
             Wp_bar_samples += Wp_bar
+            Wp_bar_samples_vec[k-N_burn-1] = Wp_bar
             Wy_bar_samples += Wy_bar
+            Wy_bar_samples_vec[k-N_burn-1] = Wy_bar
         print(k)
 
-    return h_samples, z_samples, r_samples, v_samples, Wz_bar_samples, Wr_bar_samples, Wp_bar_samples, Wy_bar_samples, h_samples_vec 
+    return h_samples, z_samples, r_samples, v_samples, Wz_bar_samples, Wr_bar_samples, Wp_bar_samples, Wy_bar_samples, h_samples_vec, Wz_bar_samples_vec, Wr_bar_samples_vec, Wp_bar_samples_vec, Wy_bar_samples_vec 
     

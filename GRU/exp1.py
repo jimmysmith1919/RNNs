@@ -1,4 +1,3 @@
-
 import numpy as np
 import var_updates as update
 import build_model as build
@@ -6,18 +5,24 @@ import main_loop as loop
 import generate_GRU as gen
 import plot_dist as plot_dist
 from scipy.special import expit
+import scipy.stats as stats
 import  matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
 import sys
+import os
+import time
+
 
 #seed = np.random.randint(0,100000)
 #print(seed)
-np.random.seed(70812)
+np.random.seed(23772)
 
 
-T=100
-d=20
+T=5
+d=3
 ud = 2
-yd = 2
+yd = 3
 h0 = 0*np.ones(d)
 u = np.random.uniform(-1,1,size=(T,ud,1))
 var=.1
@@ -139,7 +144,8 @@ z = np.random.binomial(1,Ez, size=(T,d,1))
 rh = np.zeros((T+1,d,1))
 #Loop parameters
 
-N=10000
+N = 1000000
+M = 1000000
 
 h_samples =0
 z_samples =0
@@ -152,12 +158,12 @@ Wy_bar_samples = 0
 
 N_burn = int(.4*N)
 
-T_check = 4
+T_check = 3
 d_check = 1
-h_samples_vec = np.zeros((N-N_burn-1,d))
 
 
-h_samples, z_samples, r_samples, v_samples, Wz_bar_samples,Wr_bar_samples, Wp_bar_samples, Wy_bar_samples, h_samples_vec = loop.gibbs_loop(N, N_burn, T, d,
+
+h_samples, z_samples, r_samples, v_samples, Wz_bar_samples,Wr_bar_samples, Wp_bar_samples, Wy_bar_samples, h_samples_vec, Wz_bar_samples_vec, Wr_bar_samples_vec, Wp_bar_samples_vec, Wy_bar_samples_vec = loop.gibbs_loop(N, N_burn, T, d,
                                                  T_check, ud, yd, h0,
                                                  inv_var, Sigma_y_inv,
                                                  Sigma_theta, Sigma_y_theta,
@@ -303,14 +309,17 @@ print('Wy_bar_true')
 print(Wy_bar_true)
 
 
-M=1000
-
-z_vec = np.zeros((M,d))
-r_vec = np.zeros((M,d))
-v_vec = np.zeros((M,d))
-h_vec = np.zeros((M,d))
 
 
+z_vec = np.zeros((M,T,d))
+r_vec = np.zeros((M,T,d))
+v_vec = np.zeros((M,T,d))
+h_vec = np.zeros((M,T,d))
+
+Wz_bar_vec = np.zeros((M,d,d+ud+1))
+Wr_bar_vec = np.zeros((M,d,d+ud+1))
+Wp_bar_vec = np.zeros((M,d,d+ud+1))
+Wy_bar_vec = np.zeros((M,yd,d+1))
 
 for i in range(0,M):
     h = h0
@@ -326,21 +335,138 @@ for i in range(0,M):
     Wy_bar = np.random.normal(Wy_mu_prior, np.sqrt(Sigma_y_theta))
     Wy,_,by = update.extract_W_weights(Wy_bar, d, 0)
 
-    for t in range(0,T_check):
+    #for t in range(0,T_check):
+    for t in range(0,T):
         z, r, v, h, y = gen.stoch_GRU_step(np.diag(1/inv_var), h, u[t,:,0],
                                            Wz, Uz, bz.reshape(d),
                                            Wr, Ur, br.reshape(d),
                                            Wp, Up, bp.reshape(d),
                                            Sigma_y, Wy, by.reshape(yd))
 
-    z_vec[i,:] = z
-    r_vec[i,:] = r
-    v_vec[i,:] = v
-    h_vec[i,:] = h
+        h_vec[i,t,:] = h
+        z_vec[i,t,:] = z
+        r_vec[i,t,:] = r
+        v_vec[i,t,:] = v
+    Wz_bar_vec[i,:,:] = Wz_bar
+    Wr_bar_vec[i,:,:] = Wr_bar
+    Wp_bar_vec[i,:,:] = Wp_bar
+    Wy_bar_vec[i,:,:] = Wy_bar
+    
+
+print('prior')
+print('Ez')
+print(np.sum(z_vec,axis=0)/M)
+print('Er')
+print(np.sum(r_vec,axis=0)/M)
+print('Ev')
+print(np.sum(v_vec,axis=0)/M)
+        
+#check h
+h_vec = h_vec.reshape(M,T*d)
+h_samples_vec = h_samples_vec.reshape(N-N_burn-1,T*d)
+
+df = pd.DataFrame(h_vec)
+col = ['prior']*M
+df[T*d]=col
+
+df2 = pd.DataFrame(h_samples_vec)
+col = ['gibbs']*(N-N_burn-1)
+df2[T*d]=col
+
+df3 = df.append(df2)
+
+timestamp = time.time()
+path = 'images/{}'.format(timestamp)
+os.mkdir(path)
+
+
+for i in range(0,T*d):
+    print(stats.ks_2samp(h_samples_vec[:,i], h_vec[:,i]))
+
+
+sns.pairplot(df3, hue=T*d, diag_kind = 'kde')
+plt.savefig(path+'/h_N{}_M{}.png'.format(N,M))
+plt.close()
+
+
+'''
+#check Wz
+Wz_bar_vec = Wz_bar_vec.reshape(M,d*(d+ud+1))
+Wz_bar_samples_vec = Wz_bar_samples_vec.reshape(N-N_burn-1,d*(d+ud+1))
+
+df = pd.DataFrame(Wz_bar_vec)
+col = ['prior']*M
+df[d*(d+ud+1)]=col
+
+df2 = pd.DataFrame(Wz_bar_samples_vec)
+col = ['gibbs']*(N-N_burn-1)
+df2[d*(d+ud+1)]=col
+
+df3 = df.append(df2)
+
+sns.pairplot(df3, hue=d*(d+ud+1), diag_kind = 'kde')
+plt.savefig(path+'/Wz_N{}_M{}.png'.format(N,M))
+plt.close()
+
+#check Wr
+Wr_bar_vec = Wr_bar_vec.reshape(M,d*(d+ud+1))
+Wr_bar_samples_vec = Wr_bar_samples_vec.reshape(N-N_burn-1,d*(d+ud+1))
+
+df = pd.DataFrame(Wr_bar_vec)
+col = ['prior']*M
+df[d*(d+ud+1)]=col
+
+df2 = pd.DataFrame(Wr_bar_samples_vec)
+col = ['gibbs']*(N-N_burn-1)
+df2[d*(d+ud+1)]=col
+
+df3 = df.append(df2)
+
+sns.pairplot(df3, hue=d*(d+ud+1), diag_kind = 'kde')
+plt.savefig(path+'/Wr_N{}_M{}.png'.format(N,M))
+plt.close()
+
+#check Wp
+Wp_bar_vec = Wp_bar_vec.reshape(M,d*(d+ud+1))
+Wp_bar_samples_vec = Wp_bar_samples_vec.reshape(N-N_burn-1,d*(d+ud+1))
+
+df = pd.DataFrame(Wp_bar_vec)
+col = ['prior']*M
+df[d*(d+ud+1)]=col
+
+df2 = pd.DataFrame(Wp_bar_samples_vec)
+col = ['gibbs']*(N-N_burn-1)
+df2[d*(d+ud+1)]=col
+
+df3 = df.append(df2)
+
+sns.pairplot(df3, hue=d*(d+ud+1), diag_kind = 'kde')
+plt.savefig(path+'/Wp_N{}_M{}.png'.format(N,M))
+plt.close()
+
+#check Wy
+Wy_bar_vec = Wy_bar_vec.reshape(M,yd*(d+1))
+Wy_bar_samples_vec = Wy_bar_samples_vec.reshape(N-N_burn-1,yd*(d+1))
+
+df = pd.DataFrame(Wy_bar_vec)
+col = ['prior']*M
+df[yd*(d+1)]=col
+
+df2 = pd.DataFrame(Wy_bar_samples_vec)
+col = ['gibbs']*(N-N_burn-1)
+df2[yd*(d+1)]=col
+
+df3 = df.append(df2)
+
+sns.pairplot(df3, hue=yd*(d+1), diag_kind = 'kde')
+plt.savefig(path+'/Wy_N{}_M{}.png'.format(N,M))
+plt.close()
+'''
 
 
 
 
+'''
 plt.hist(h_samples_vec[:,d_check].reshape(N-N_burn-1), bins=100, density=True)
 plt.hist(h_vec[:,d_check], bins=100, histtype='step',color='r', density=True,
          label='prior')
@@ -350,7 +476,7 @@ plt.title('Gen: T={}, T_check={}, d_check={}, N={}, Var={}, var_y={}'.format(
     T,T_check,d_check,N,var, var_y))
 plt.legend()
 plt.show()
-
+'''
 sys.exit()
 
 
@@ -574,7 +700,7 @@ post = (h_like*yp)/marg_y
 plt.plot(x,post,'r',label = 'post')
 
 
-M = 100
+M = 10000
 post_vec = 0
 c_vec = 0
 for m in range(0,M):

@@ -65,6 +65,7 @@ def build_prec_x_kalman(inv_var, Sigma_y_inv, Wy, Wz, pg_z, z, Wr,
         #Off-Diagonal
         cross = -np.outer(1-z[t+1,:,0], np.ones(d))*Sigma_inv
         J_dyn_21[t] = cross
+        
     
     return J_dyn_11, J_dyn_22, J_dyn_21, J_obs, J_ini
 

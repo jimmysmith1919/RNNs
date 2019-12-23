@@ -6,9 +6,8 @@ import generate_GRU as gen
 import plot_dist as plot_dist
 from scipy.special import expit
 import  matplotlib.pyplot as plt
-import os
 import sys
-import time
+
 
 seed = 4571#np.random.randint(0,10000)
 np.random.seed(seed)
@@ -17,15 +16,14 @@ print('random_seed:',seed)
 
 ## DATA  #######
 #Sine Wave#
-end = 200
+end = 800
 dt = 1
-T_new = 300
+T_new = 100
 
 
 t = np.arange(0, end, dt)
 #data = np.sin((.06+.006)*t)
-data = np.sin((.05)*t)
-
+data = np.sin((.2)*t)
 ud = 1
 yd = 1
 
@@ -45,9 +43,9 @@ y_test = data[stop:].reshape(T_test,yd,1)
 
 
 ##Model Initialization
-d=64
+d=10
 h0 = 0*np.ones(d)
-var=.1
+var=.3
 inv_var = np.ones(d)*1/var
 var_y = .1
 Sigma_y = var_y*np.identity(yd)
@@ -63,14 +61,43 @@ Sigma_y_theta = np.ones((yd,d+1))*theta_y_var
 L=-.9
 U= .9
 
+'''
 Wz_bar,Wz,Uz,bz,Wz_mu_prior = update.init_weights(L,U, Sigma_theta, d, ud)
 Wr_bar,Wr,Ur,br,Wr_mu_prior  = update.init_weights(L,U, Sigma_theta, d, ud)
 Wp_bar,Wp,Up,bp,Wp_mu_prior  = update.init_weights(L,U, Sigma_theta, d, ud)
 
 Wy_bar,Wy,_,by,Wy_mu_prior  = update.init_weights(L,U, Sigma_y_theta, d, 0)
+'''
+
+train_weights = False
+
+##Load Weights
+wfile = 'weights/'+'GRU_d10_eps150_lr0.0001_end100_1576695162.8768609.npy'
+weights = np.load(wfile, allow_pickle=True)
+
+Uz = (weights[0][0,:d]).reshape(d,ud)
+Ur = (weights[0][0,d:2*d]).reshape(d,ud)
+Up = (weights[0][0,2*d:3*d]).reshape(d,ud)
 
 
-train_weights = True
+Wz = weights[1][:,:d].T
+Wr = weights[1][:,d:2*d].T
+Wp = weights[1][:,2*d:3*d].T
+
+
+bz = (weights[2][:d]).reshape(d,1)
+br = (weights[2][d:2*d]).reshape(d,1)
+bp = (weights[2][2*d:3*d]).reshape(d,1)
+
+Wy = weights[3].reshape(1,d)
+by = weights[4].reshape(1,1)
+
+
+
+Wz_mu_prior = np.concatenate((Wz,Uz,bz), axis = 1)
+Wr_mu_prior = np.concatenate((Wr,Ur,br), axis = 1) 
+Wp_mu_prior = np.concatenate((Wp,Up,bp), axis = 1) 
+Wy_mu_prior = np.concatenate((Wy,by), axis = 1) 
 
 
 
@@ -89,11 +116,12 @@ for j in range(0,T):
     z[j,:,0] = zt
     h[j+1,:,0] = ht
 
+    
 rh = np.zeros((T+1,d,1))
 
 
 #Loop parameters
-N=100000
+N=10000
 M=1000  #number of test samples
 N_burn = int(.4*N)
 T_check = -1 
@@ -159,11 +187,9 @@ for j in range(0, T):
                                              Wy, by.reshape(yd))
     train_y[j,:] = yt
 
-
-plt.plot(t[1:stop], train_y.reshape(T))
-
 plt.plot(t[1:],y_full.reshape(T_full), label = 'True')
 plt.plot(t[1:stop], train_y.reshape(T), label = 'mean_train')
+
 
 
 samples_len = len(h_samples_vec[:,0,0])
@@ -187,12 +213,12 @@ for i in range(0,M):
     Wy,_,by = update.extract_W_weights(Wy_bar, d, 0)
     
     for j in range(0,T):
+        
         z, r, v, h, y = gen.stoch_GRU_step(np.diag(1/inv_var), h, u[j,:,0],
                                            Wz, Uz, bz.reshape(d),
                                            Wr, Ur, br.reshape(d),
                                            Wp, Up, bp.reshape(d),
                                            Sigma_y, Wy, by.reshape(yd))
-        
         
         train_y_vec[i,j] = y
 
@@ -201,7 +227,7 @@ train_y = (np.sum(train_y_vec, axis = 0))/M
 
 
 #Test predictions
-#mean weights
+#Mean weights
 Wz,Uz,bz = update.extract_W_weights(EWz_bar, d, ud)
 Wr,Ur,br = update.extract_W_weights(EWr_bar, d, ud)
 Wp,Up,bp = update.extract_W_weights(EWp_bar, d, ud)
@@ -222,6 +248,8 @@ for j in range(0, T_new):
 ran = np.arange(stop, stop+T_new, dt)
 plt.plot(ran, test_y, label = 'mean_test' )
 
+
+    
 test_y_vec = np.zeros((M,T_new))
 
 
@@ -240,16 +268,15 @@ for i in range(0,M):
     Wy_bar = Wy_bar_samples_vec[samples_len-M+i]
     Wy,_,by = update.extract_W_weights(Wy_bar, d, 0)
     
-
     u = y_last
     
     for j in range(0,T_new):
+        
         z, r, v, h, y = gen.stoch_GRU_step(np.diag(1/inv_var), h, u,
                                            Wz, Uz, bz.reshape(d),
                                            Wr, Ur, br.reshape(d),
                                            Wp, Up, bp.reshape(d),
                                            Sigma_y, Wy, by.reshape(yd))
-        
         
         test_y_vec[i,j] = y
         u = y
@@ -258,21 +285,15 @@ for i in range(0,M):
 test_y = (np.sum(test_y_vec, axis = 0))/M
 
 
-timestamp = time.time()
-path = 'images/{}'.format(timestamp)
 
 
-os.mkdir(path)
+plt.plot(t[1:stop], train_y.reshape(T), label = 'sample_train')
 
-plt.plot(t[1:stop], train_y.reshape(T), label='sample_train')
 
-plt.plot(ran, test_y, label='sample_test')
 
+
+plt.plot(ran, test_y, label = 'sample_test' )
+plt.title('N={}, Train_Weights={}, d={}'.format(N,train_weights,d))
 plt.legend()
-plt.title('N={}, M={}, Train_Weights={}, d={}, Var_h={}, Var_y={}'.format(N,M,train_weights,d,var, var_y ))
-
-
-plt.savefig(path+ '/d{}_N{}.png'.format( d, N))
-
 plt.show()
 

@@ -1,9 +1,11 @@
 import numpy as np
 from scipy.special import expit
 
+
 def GRU_step(h_0, u, Wi, Ui, bi, Wr, Ur, br, Wp, Up, bp, Wy, by):
     fi = Wi @ h_0 + Ui @ u + bi
     fr = Wr @ h_0 + Ur @ u + br
+    
     i = expit(fi)
     r = expit(fr)
     

@@ -18,36 +18,63 @@ print('random_seed:',seed)
 ## DATA  #######
 #Sine Wave#
 end = 200
-dt = 1
-T_new = 300
+dT = 10
 
 
-t = np.arange(0, end, dt)
-#data = np.sin((.06+.006)*t)
-data = np.sin((.05)*t)
+ud = 2 #u dimension
+yd = 1 #y dimension
 
-ud = 1
-yd = 1
+t = np.arange(0,end)
 
-stop = int(.8*end/dt)
-T = stop-1
-u = data[:T].reshape(T,ud,1)
-y = data[1:stop].reshape(T,yd,1)
+u1 = np.random.uniform(-0.5,0.5, size=end)
+u2 = np.zeros(end)
+y_full = np.zeros(end)
+ind_vec = np.zeros(int(end/dT))
+
+k=0
+for i in range(0,end):
+    if i % dT == 0:
+        j = np.random.randint(i,i+dT)
+        ind_vec[k] = j
+        k += 1
+    if i == j:
+        u2[i] = 1
+
+for k in range(0,len(ind_vec),2):
+    y_full[int(ind_vec[k+1])]= u1[int(ind_vec[k])]+u1[int(ind_vec[k+1])]
+
+
+y_full = y_full.reshape(end, yd, 1)
+
+u_full = np.zeros((end,2,1))
+u_full[:,0,0]=u1
+u_full[:,1,0]=u2
+
+
+
+
+stop = int(.6*end/dT)
+T = stop*dT
+u = u_full[:T]
+y = y_full[:T]
 y_last = y[-1,:,0]
 
-T_full = len(data)-1
-y_full = data[1:].reshape(T_full, ud, 1)
+T_new = end-T
 
-T_test = T_full-T
-#u_test = data[stop-1:-1].reshape(T_test,ud,1)
-y_test = data[stop:].reshape(T_test,yd,1)
-#####################
+T_full = len(y_full)
+
+u_test=u_full[T:]
+y_test = y_full[T:]
+
+T_test = len(y_test)
+
+
 
 
 ##Model Initialization
-d=64
+d=10
 h0 = 0*np.ones(d)
-var=.1
+var=.3
 inv_var = np.ones(d)*1/var
 var_y = .1
 Sigma_y = var_y*np.identity(yd)
@@ -93,7 +120,7 @@ rh = np.zeros((T+1,d,1))
 
 
 #Loop parameters
-N=100000
+N=10000
 M=1000  #number of test samples
 N_burn = int(.4*N)
 T_check = -1 
@@ -141,6 +168,8 @@ print(np.round(EWy_bar,4))
 
 #Training Predictions
 
+
+
 #Mean weights
 Wz,Uz,bz = update.extract_W_weights(EWz_bar, d, ud)
 Wr,Ur,br = update.extract_W_weights(EWr_bar, d, ud)
@@ -160,10 +189,12 @@ for j in range(0, T):
     train_y[j,:] = yt
 
 
-plt.plot(t[1:stop], train_y.reshape(T))
 
-plt.plot(t[1:],y_full.reshape(T_full), label = 'True')
-plt.plot(t[1:stop], train_y.reshape(T), label = 'mean_train')
+
+
+plt.plot(y_full.reshape(end), label='true')
+#plt.plot(t[1:],y_full.reshape(T_full), label = 'True')
+plt.plot(train_y.reshape(T), label = 'mean_train')
 
 
 samples_len = len(h_samples_vec[:,0,0])
@@ -208,25 +239,24 @@ Wp,Up,bp = update.extract_W_weights(EWp_bar, d, ud)
 Wy,_,by = update.extract_W_weights(EWy_bar, d, 0)
 
 h = Eh[-1,:,0]
-u = y_last
 test_y = np.zeros((T_new, yd))
 
 for j in range(0, T_new):
-    z, r, v, h, yt = gen.stoch_GRU_step_mean(h, u, Wz, Uz, bz.reshape(d),
+    z, r, v, h, yt = gen.stoch_GRU_step_mean(h, u_test[j,:,0],
+                                             Wz, Uz, bz.reshape(d),
                                         Wr, Ur, br.reshape(d),
                                         Wp, Up, bp.reshape(d),
                                         Wy, by.reshape(yd))
     test_y[j,:] = yt
-    u = yt
 
-ran = np.arange(stop, stop+T_new, dt)
+ran = np.arange(T, T+T_new)
 plt.plot(ran, test_y, label = 'mean_test' )
 
 test_y_vec = np.zeros((M,T_new))
 
 
 for i in range(0,M):
-    h = h_samples_vec[samples_len-M+i,-1,:]
+    h = h_samples_vec[samples_len-M+i,-1,0]
     
     Wz_bar = Wz_bar_samples_vec[samples_len-M+i]
     Wz,Uz,bz = update.extract_W_weights(Wz_bar, d, ud)
@@ -241,10 +271,11 @@ for i in range(0,M):
     Wy,_,by = update.extract_W_weights(Wy_bar, d, 0)
     
 
-    u = y_last
+    
     
     for j in range(0,T_new):
-        z, r, v, h, y = gen.stoch_GRU_step(np.diag(1/inv_var), h, u,
+        z, r, v, h, y = gen.stoch_GRU_step(np.diag(1/inv_var), h,
+                                           u_test[j,:,0],
                                            Wz, Uz, bz.reshape(d),
                                            Wr, Ur, br.reshape(d),
                                            Wp, Up, bp.reshape(d),
@@ -252,7 +283,6 @@ for i in range(0,M):
         
         
         test_y_vec[i,j] = y
-        u = y
 
 
 test_y = (np.sum(test_y_vec, axis = 0))/M
@@ -264,7 +294,7 @@ path = 'images/{}'.format(timestamp)
 
 os.mkdir(path)
 
-plt.plot(t[1:stop], train_y.reshape(T), label='sample_train')
+plt.plot(train_y.reshape(T), label='sample_train')
 
 plt.plot(ran, test_y, label='sample_test')
 
