@@ -23,8 +23,8 @@ T_new = 300
 
 
 t = np.arange(0, end, dt)
-#data = np.sin((.06+.006)*t)
-data = np.sin((.05)*t)
+#data = np.sin((.05)*t)
+data = np.sin((.2)*t)
 
 ud = 1
 yd = 1
@@ -45,7 +45,7 @@ y_test = data[stop:].reshape(T_test,yd,1)
 
 
 ##Model Initialization
-d=64
+d=10
 h0 = 0*np.ones(d)
 var=.1
 inv_var = np.ones(d)*1/var
@@ -60,6 +60,7 @@ Sigma_theta = np.ones((d,d+ud+1))*theta_var
 theta_y_var = (1/3**2)
 Sigma_y_theta = np.ones((yd,d+1))*theta_y_var
 
+'''
 L=-.9
 U= .9
 
@@ -68,9 +69,41 @@ Wr_bar,Wr,Ur,br,Wr_mu_prior  = update.init_weights(L,U, Sigma_theta, d, ud)
 Wp_bar,Wp,Up,bp,Wp_mu_prior  = update.init_weights(L,U, Sigma_theta, d, ud)
 
 Wy_bar,Wy,_,by,Wy_mu_prior  = update.init_weights(L,U, Sigma_y_theta, d, 0)
-
+'''
 
 train_weights = True
+
+
+##Load Trained Tensorflow Weights
+#####       
+wfile = 'weights/'+'GRU_d10_eps150_lr0.0001_end200_1577986258.269421.npy'
+weights = np.load(wfile, allow_pickle=True)
+
+Uz = (weights[0][0,:d]).reshape(d,ud)
+Ur = (weights[0][0,d:2*d]).reshape(d,ud)
+Up = (weights[0][0,2*d:3*d]).reshape(d,ud)
+
+
+Wz = weights[1][:,:d].T
+Wr = weights[1][:,d:2*d].T
+Wp = weights[1][:,2*d:3*d].T
+
+
+bz = (weights[2][:d]).reshape(d,1)
+br = (weights[2][d:2*d]).reshape(d,1)
+bp = (weights[2][2*d:3*d]).reshape(d,1)
+
+Wy = weights[3].reshape(1,d)
+by = weights[4].reshape(1,1)
+
+
+
+Wz_mu_prior = np.concatenate((Wz,Uz,bz), axis = 1)
+Wr_mu_prior = np.concatenate((Wr,Ur,br), axis = 1)
+Wp_mu_prior = np.concatenate((Wp,Up,bp), axis = 1)
+Wy_mu_prior = np.concatenate((Wy,by), axis = 1)
+#####
+
 
 
 
@@ -94,7 +127,7 @@ rh = np.zeros((T+1,d,1))
 
 #Loop parameters
 N=100000
-M=1000  #number of test samples
+M=10000  #number of test samples
 N_burn = int(.4*N)
 T_check = -1 
 d_check = 0

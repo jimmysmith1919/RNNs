@@ -44,47 +44,28 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         rh[:-1,:,:] = r*h[:-1,:,:]
         gamma = update.pg_update(1, rh, u, 2*Wp, 2*Up, 2*bp, T, d)
 
+        
+        
         #Update v
         fv = build.build_v_param(h,z,rh,u,Wp,Up,bp, inv_var, d)
         Ev = update.update_bern(fv)
         v  = np.random.binomial(1, Ev, size=(T,d,1))
-    
 
-        ####
-        sig_h_inv = np.diag(inv_var)
-        #val = log_prob.log_prob_ht(h[2], h[1], z[1], v[1], sig_h_inv, d)
-
-        val = integrate.nquad(log_prob.ht_wrapper,
-                              [[-np.inf,np.inf],[-np.inf,np.inf],
-                               [-np.inf,np.inf] ], args = [h[1],
-                                                           z[2], v[2],
-                                                           sig_h_inv,
-                                                           d])
-        
-        print('h')
-        print(val)
-        sys.exit()
-        
-
-
-
-        ####
         
         #Update Zs
         fz = build.build_z_param(h,v,inv_var.reshape(d,1), Wz, Uz, u, bz, d)
         Ez = update.update_bern(fz)
         z = np.random.binomial(1,Ez, size=(T,d,1))
-
+        
         #Update r's
-        for j in range(0,d):                            
+        for j in range(0,d):
             frd = build.build_rd_param(h,u,v,gamma,r,Wp,Up,bp,Wr,Ur,br,j)
             Erd = update.update_bern(frd)
-        
             r[:,j,:] = np.random.binomial(1,Erd, size=(T,1))
 
-    
+           
         #Update hs
-        
+        #Kalman sampling
         J_dyn_11,J_dyn_22,J_dyn_21,J_obs,J_ini = build.build_prec_x_kalman(
             inv_var, Sigma_y_inv, Wy,
             Wz, omega_z, z, Wr, omega_r, r,
@@ -94,24 +75,6 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
             z, omega_z, Wz, Uz, bz,
             r, omega_r, Wr, Ur, br,
             v, Wp, Up, bp, gamma, T, d)
-        
-        
-        '''
-        log_Z_obs = np.zeros(T)
-
-        _,smoothed_mus,smoothed_Sigmas,off=messages.kalman_info_smoother(J_ini,
-                                                                       h_ini,
-                                                                       0,
-                         J_dyn_11, J_dyn_21, J_dyn_22, h_dyn_1, h_dyn_2, 0,
-                                       J_obs, h_obs, log_Z_obs)
-
-        print('smoothed_mus')
-        print(smoothed_mus)
-        print('smoothed_sigmas')
-        print(smoothed_Sigmas)
-        print('off')
-        print(np.round(off, 4))
-        '''
         
         log_Z_obs = np.zeros(T)
         h =messages.kalman_info_sample(J_ini, h_ini, 0, J_dyn_11, J_dyn_21,
@@ -124,6 +87,7 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         
 
         '''
+        #Full T*dXT*d matrix
         prec = build.build_prec_x(inv_var, Sigma_y_inv, Wy,
                                   Wz, omega_z, z, Wr, omega_r, r,
                                   Wp, gamma, v, T, d)
@@ -142,13 +106,12 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         h = np.concatenate((h0.reshape(1,d,1), h), axis=0)
         '''
         
-        
         #Sample y's, for Testing purposes                                      
         Ey = Wy @ h[1:] + by                                                   
         Sig_y_diag = np.diag(Sigma_y).reshape(yd,1)                            
         Sig_y_in = np.ones((T,yd,1))*Sig_y_diag                              
         y= np.random.normal(Ey, np.sqrt(Sig_y_in))   
-        
+    
 
         if train_weights == True:
         
@@ -177,7 +140,7 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
             Wy_bar, Wy, by = update.Wbar_y_update(x,xxT,y, Sigma_y_inv,
                                                   1/Sigma_y_theta, Wy_mu_prior,
                                                   T,d,yd)
-                
+            
         if k > N_burn:
             h_samples_vec[k-N_burn-1] = h[1:].reshape(T,d)
             h_samples += h

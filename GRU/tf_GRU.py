@@ -16,9 +16,9 @@ import numpy as np
 seed = 10
 np.random.seed(seed)
 
-d = 10
+d = 20
 lr = .0001
-eps = 150
+eps = 200
 
 np.set_printoptions(precision=13)
 
@@ -48,13 +48,14 @@ model.compile(optimizer=Adam(lr=lr), loss='mse')
 
 
 
-end = 100
+end = 200
 dt = 1
 T_new = 200 #Number of new steps to predict                         
 
 t = np.arange(0, end, dt)
 #data = np.sin((.06+.006)*t)
-data = np.sin((.2)*t)
+data = np.sin((.05)*t)
+#data = np.sin((.2)*t)
 
 
 ud = 1 #u dimension                                                            

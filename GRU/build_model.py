@@ -141,10 +141,13 @@ def build_z_param(h, v, inv_var, W, U, u, b,d):
     fz += (-h_h_minus + h[1:,:,:]*(2*v-1) + 1/2*h_minus_sq - 1/2)*inv_var
     return fz
 
+'''
 def build_rd_param(h,u,v,gamma,r,Wp,Up,bp,Wr,Ur,br,dim):
+    
     hmin_Wdd = h[:-1,dim,:]*Wp[dim, dim]
+    
     param = 2*(v[:,dim,:]-1/2)*hmin_Wdd
-
+    
     Wp_min_d = np.delete(Wp,dim,1)
     r_min_d = np.delete(r,dim,1)
     h_min_d = np.delete(h,dim,1)
@@ -152,7 +155,32 @@ def build_rd_param(h,u,v,gamma,r,Wp,Up,bp,Wr,Ur,br,dim):
     fp_min = Wp_min_d[dim,:] @ rh_min+Up[dim,:]@ u + bp[dim,:]
 
     param += -2*gamma[:,dim,:]*( hmin_Wdd**2+2*hmin_Wdd*fp_min ) 
-    param += Wr[dim,:] @ h[:-1,:,:] + Ur[dim,:] @ u + br[dim,:] 
+    
+    param += Wr[dim,:] @ h[:-1,:,:] + Ur[dim,:] @ u + br[dim,:]
+    
+    return param
+'''
+
+def build_rd_param(h,u,v,gamma,r,Wp,Up,bp,Wr,Ur,br,dim):
+    
+    hmin_Wd = Wp[:, dim]*h[:-1,dim,:]
+    hmin_Wd = np.expand_dims(hmin_Wd, axis=2)
+        
+    param = np.sum(2*(v-1/2)*hmin_Wd, axis=1)
+        
+    Wp_min_d = np.delete(Wp,dim,1)
+    
+    r_min_d = np.delete(r,dim,1)
+    
+    h_min_d = np.delete(h,dim,1)
+    
+    rh_min = r_min_d*h_min_d[:-1,:,:]
+    
+    fp_min = Wp_min_d @ rh_min + Up @ u + bp
+    
+    param += np.sum( -2*gamma*( hmin_Wd**2+2*hmin_Wd*fp_min ), axis=1 )
+     
+    param += Wr[dim,:] @ h[:-1,:,:] + Ur[dim,:] @ u + br[dim,:]
     return param
 
 def build_v_param(h,z,rh,u,Wp,Up, bp, inv_var,d):
@@ -161,17 +189,5 @@ def build_v_param(h,z,rh,u,Wp,Up, bp, inv_var,d):
     hz = h[1:,:,:]*z
     fv += 2*hz*inv_var.reshape(d,1)
     return fv
-
-def log_like(x0,inv_var,x, z, omega, u, W, U, b, bpg, T, d):
-    
-    x0 = x0.reshape(1,d,1)
-    sum = -1/2*(x-x0).transpose(0,2,1) @ np.diag(inv_var) @ (x-x0)
-    sum += -d/2*np.log(2*np.pi)-1/2*np.log(np.prod(1/inv_var))
-    sum += d*np.log(1/2)
-    sum += (W @ x + U @ u + b).transpose(0,2,1) @  (z-1/2) 
-    sum += -1/2*x.transpose(0,2,1) @ W.T @ np.diag(omega[0,:,0]) @ W @ x
-    sum += -(omega * (U @ u + b) ).transpose(0,2,1) @ W @ x
-    sum += np.sum(pgpdf(omega, bpg, 0, 20))
-    return sum
 
 

@@ -16,12 +16,12 @@ import time
 
 #seed = np.random.randint(0,100000)
 #print(seed)
-np.random.seed(23772)
+np.random.seed(23779)
 
 
-T=5
-d=3
-ud = 2
+T=6
+d=4
+ud = 3
 yd = 3
 h0 = 0*np.ones(d)
 u = np.random.uniform(-1,1,size=(T,ud,1))
@@ -144,8 +144,8 @@ z = np.random.binomial(1,Ez, size=(T,d,1))
 rh = np.zeros((T+1,d,1))
 #Loop parameters
 
-N = 1000000
-M = 1000000
+N = 2000000
+M = 2000000
 
 h_samples =0
 z_samples =0

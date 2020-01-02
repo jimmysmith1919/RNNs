@@ -7,7 +7,8 @@ import plot_dist as plot_dist
 from scipy.special import expit
 import  matplotlib.pyplot as plt
 import sys
-
+import os
+import time
 
 seed = 4571#np.random.randint(0,10000)
 np.random.seed(seed)
@@ -16,9 +17,9 @@ print('random_seed:',seed)
 
 ## DATA  #######
 #Sine Wave#
-end = 800
+end = 200
 dt = 1
-T_new = 100
+T_new = 200
 
 
 t = np.arange(0, end, dt)
@@ -45,7 +46,7 @@ y_test = data[stop:].reshape(T_test,yd,1)
 ##Model Initialization
 d=10
 h0 = 0*np.ones(d)
-var=.3
+var=.1
 inv_var = np.ones(d)*1/var
 var_y = .1
 Sigma_y = var_y*np.identity(yd)
@@ -72,7 +73,7 @@ Wy_bar,Wy,_,by,Wy_mu_prior  = update.init_weights(L,U, Sigma_y_theta, d, 0)
 train_weights = False
 
 ##Load Weights
-wfile = 'weights/'+'GRU_d10_eps150_lr0.0001_end100_1576695162.8768609.npy'
+wfile = 'weights/'+'GRU_d10_eps150_lr0.0001_end200_1577986258.269421.npy'
 weights = np.load(wfile, allow_pickle=True)
 
 Uz = (weights[0][0,:d]).reshape(d,ud)
@@ -121,8 +122,8 @@ rh = np.zeros((T+1,d,1))
 
 
 #Loop parameters
-N=10000
-M=1000  #number of test samples
+N=100000
+M=10000  #number of test samples
 N_burn = int(.4*N)
 T_check = -1 
 d_check = 0
@@ -286,6 +287,11 @@ test_y = (np.sum(test_y_vec, axis = 0))/M
 
 
 
+timestamp = time.time()
+path = 'images/{}'.format(timestamp)
+
+os.mkdir(path)
+
 
 plt.plot(t[1:stop], train_y.reshape(T), label = 'sample_train')
 
@@ -293,7 +299,10 @@ plt.plot(t[1:stop], train_y.reshape(T), label = 'sample_train')
 
 
 plt.plot(ran, test_y, label = 'sample_test' )
-plt.title('N={}, Train_Weights={}, d={}'.format(N,train_weights,d))
+plt.title('N={}, Train_Weights={}, d={}, Var_h={}, Var_y={}'.format(N,train_weights,d, var, var_y))
+
 plt.legend()
+plt.savefig(path+ '/d{}_N{}.png'.format( d, N))
+
 plt.show()
 

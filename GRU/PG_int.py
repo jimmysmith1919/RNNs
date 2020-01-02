@@ -93,12 +93,8 @@ def entropy_q_vec(qdf):
 
 
 
-
-
-
-
-
 '''
+psi = 0
 k= integrate.quad(pgpdf, 0, np.inf, 
                      args=(1, psi), 
                  epsabs=1e-4,   epsrel = 0)[0]
