@@ -3,6 +3,7 @@ import sys
 import PG_int as PG
 from scipy.stats import bernoulli as bern
 from scipy.stats import multivariate_normal as MVN
+from scipy.special import expit
 
 def log_prob_yt(yt, ht, Wy, by, sig_y_inv, yd):
     val = -1/2*(yt-(Wy @ ht + by)).T @ sig_y_inv @ (yt-(Wy @ ht + by))
@@ -73,6 +74,13 @@ def v_gamma_wrapper(g0, vt, d,rt, h_tmin, Wp, Up, bp, ut):
     return val
 '''
 
+def log_prob_z(d,zt,h_tmin, W, U, b, ut):
+    f = W @ h_tmin + U @ ut + b
+    mu = expit(f) 
+    return np.sum(bern.logpmf(zt, mu))
+    
+    
+
 def log_prob_z_omega(d, zt, omega_t, h_tmin, W, U, b, ut):
     val = d*np.log(1/2)
     f = W @ h_tmin + U @ ut + b
@@ -116,26 +124,27 @@ def wbar_wrapper(w0,w1,w2,w3, sig_W_inv, mu_prior_d, d, ud):
     val = np.exp(log_prob_wbar_dT(Wd_t, sig_W_inv, mu_prior_d, d, ud))
     return val[0][0]
 
+def marg_log_joint_t_no_weights(d, yd, ut, yt, ht, h_tmin,
+                                sig_h_inv, zt, vt, rt,
+                                Wz, Uz, bz, Wr, Ur, br,
+                                Wp, Up, bp, Wy, by, sig_y_inv):
+    val = log_prob_yt(yt, ht, Wy, by, sig_y_inv, yd)
+    val += log_prob_ht(ht, h_tmin, zt, vt, sig_h_inv,d)
+    val += log_prob_z(d, zt, h_tmin, Wz, Uz, bz, ut)
+    val += log_prob_z(d, rt, h_tmin, Wr, Ur, br, ut)
+    val += log_prob_z(d, vt, h_tmin, 2*Wp, 2*Up, 2*bp, ut)
+    return val
+
 
 def log_joint_t_no_weights(d, yd, ut, yt, ht, h_tmin, sig_h_inv, zt, vt, rt,
                            gamma_t, omega_zt, omega_rt,
                            Wz, Uz, bz, Wr, Ur, br,
                            Wp, Up, bp, Wy, by, sig_y_inv):
     val = log_prob_yt(yt, ht, Wy, by, sig_y_inv, yd)
-    print('yt')
-    print(log_prob_yt(yt, ht, Wy, by, sig_y_inv, yd))
     val += log_prob_ht(ht, h_tmin, zt, vt, sig_h_inv,d)
-    print('ht')
-    print(log_prob_ht(ht, h_tmin, zt, vt, sig_h_inv,d))
     val += log_prob_v_gamma(d, vt, gamma_t, rt, h_tmin, Wp, Up, bp, ut)
-    print('v,gamma')
-    print(log_prob_v_gamma(d, vt, gamma_t, rt, h_tmin, Wp, Up, bp, ut))
     val += log_prob_z_omega(d, zt, omega_zt, h_tmin, Wz, Uz, bz, ut)
-    print('z,omega')
-    print(log_prob_z_omega(d, zt, omega_zt, h_tmin, Wz, Uz, bz, ut))
     val += log_prob_z_omega(d, rt, omega_rt, h_tmin, Wr, Ur, br, ut)
-    print('r,omega')
-    print(log_prob_z_omega(d, rt, omega_rt, h_tmin, Wr, Ur, br, ut))
     return val
 
 
@@ -154,6 +163,20 @@ def full_log_joint_no_weights(T, d, yd, u, y, h, sig_h_inv, z, v, r,
                                  Wp, Up, bp, Wy, by, sig_y_inv)
     
     return val[0][0]
+
+def marg_full_log_joint_no_weights(T, d, yd, u, y, h, sig_h_inv, z, v, r,
+                                   Wz, Uz, bz, Wr, Ur, br,
+                                   Wp, Up, bp, Wy, by, sig_y_inv):    
+    val = 0
+    for t in range(0,T):
+        val += marg_log_joint_t_no_weights(d, yd, u[t], y[t], h[t+1], h[t],
+                                 sig_h_inv, z[t], v[t], r[t],
+                                 Wz, Uz, bz, Wr, Ur, br,
+                                 Wp, Up, bp, Wy, by, sig_y_inv)
+    
+    return val[0][0]
+
+
 
 
 def full_log_joint(T, d, yd, u, y, h, sig_h_inv, z, v, r,

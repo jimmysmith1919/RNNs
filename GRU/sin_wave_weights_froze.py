@@ -105,10 +105,11 @@ Wy_mu_prior = np.concatenate((Wy,by), axis = 1)
 #Initialize h
 h = np.zeros((T+1,d,1))
 h[0,:,0] = h0
+h_0 = h0
 r = np.zeros((T,d,1))
 z = np.zeros((T,d,1))
 for j in range(0,T):
-    zt, rt, _, ht, _ = gen.stoch_GRU_step(np.diag(1/inv_var), h0, u[j,:,0],
+    zt, rt, _, ht, _ = gen.stoch_GRU_step(np.diag(1/inv_var), h_0, u[j,:,0],
                                        Wz, Uz, bz.reshape(d),
                                        Wr, Ur, br.reshape(d),
                                        Wp, Up, bp.reshape(d),
@@ -116,19 +117,20 @@ for j in range(0,T):
     r[j,:,0] = rt
     z[j,:,0] = zt
     h[j+1,:,0] = ht
-
+    h_0 = h[j+1,:,0]
     
 rh = np.zeros((T+1,d,1))
 
 
 #Loop parameters
 N=100000
-M=10000  #number of test samples
-N_burn = int(.4*N)
-T_check = -1 
+log_check = 100
+N_burn = int(.99*N)
+M=N-N_burn-1  #number of test samples
+T_check = 100 
 d_check = 0
 
-h_samples, z_samples, r_samples, v_samples, Wz_bar_samples,Wr_bar_samples, Wp_bar_samples, Wy_bar_samples, h_samples_vec, Wz_bar_samples_vec, Wr_bar_samples_vec, Wp_bar_samples_vec, Wy_bar_samples_vec = loop.gibbs_loop(N, N_burn, T, d,
+h_samples, z_samples, r_samples, v_samples, Wz_bar_samples,Wr_bar_samples, Wp_bar_samples, Wy_bar_samples, h_samples_vec, Wz_bar_samples_vec, Wr_bar_samples_vec, Wp_bar_samples_vec, Wy_bar_samples_vec, h_plot_samples, log_joint_vec = loop.gibbs_loop(N, N_burn, T, d,
                                                  T_check, ud, yd, h0,
                                                  inv_var, Sigma_y_inv,
                                                  Sigma_theta, Sigma_y_theta,
@@ -137,7 +139,7 @@ h_samples, z_samples, r_samples, v_samples, Wz_bar_samples,Wr_bar_samples, Wp_ba
                                                  Wp_mu_prior, Wy_mu_prior, Wz,
                                                  Uz, bz, Wr, Ur, br, Wp, Up,
                                                  bp, Wy, by, train_weights,
-                                                 u, y, h, r, rh, z)
+                                                                                                                                                                                                                                                          u, y, h, r, rh, z, log_check)
 
 
 Eh = h_samples/(N-N_burn-1)
@@ -168,6 +170,28 @@ print(np.round(EWy_bar,4))
 
 
 
+
+timestamp = time.time()
+path = 'images/{}'.format(timestamp)
+os.mkdir(path)
+
+###                                                                  
+#plot evolution of parameters over time                                
+plt.plot(h_plot_samples)
+plt.savefig(path+'/samples')
+plt.title('N={}, M={}, Train_Weights={}, d={}, Var_h={}, Var_y={}'.format(N,M,train_weights,d,var, var_y ))
+plt.close()
+for j in range(0,d):
+    plt.plot(h_plot_samples[:,j])
+    plt.savefig(path+'/samples_{}'.format(j))
+    plt.close()
+
+plt.plot(log_joint_vec)
+plt.savefig(path+'/log_joint')
+plt.close()
+###  
+
+
 #Training Predictions
 
 #Mean weights
@@ -179,6 +203,7 @@ Wy,_,by = update.extract_W_weights(EWy_bar, d, 0)
 
 h = h0
 train_y = np.zeros((T, yd))
+train_y2 = np.zeros((T,yd))
 
 for j in range(0, T):
     z, r, v, h, yt = gen.stoch_GRU_step_mean(h, u[j,:,0],
@@ -187,30 +212,34 @@ for j in range(0, T):
                                              Wp, Up, bp.reshape(d),
                                              Wy, by.reshape(yd))
     train_y[j,:] = yt
-
+    train_y2[j,:] = Wy @ Eh[j,:,0] + by.reshape(yd)
+    
 plt.plot(t[1:],y_full.reshape(T_full), label = 'True')
 plt.plot(t[1:stop], train_y.reshape(T), label = 'mean_train')
+plt.plot(t[1:stop], train_y2.reshape(T), label = 'EWy@Eh+Eby_train')
 
 
 
-samples_len = len(h_samples_vec[:,0,0])
+
+
 
 train_y_vec = np.zeros((M,T))
-
+train_y_vec2 = np.zeros((M,T))
 
 for i in range(0,M):
     h = h0
+    h2 = h_samples_vec[-(i+1)]
     
-    Wz_bar = Wz_bar_samples_vec[samples_len-M+i]
+    Wz_bar = Wz_bar_samples_vec[-(i+1)]
     Wz,Uz,bz = update.extract_W_weights(Wz_bar, d, ud)
 
-    Wr_bar = Wr_bar_samples_vec[samples_len-M+i]
+    Wr_bar = Wr_bar_samples_vec[-(i+1)]
     Wr,Ur,br = update.extract_W_weights(Wr_bar, d, ud)
 
-    Wp_bar = Wp_bar_samples_vec[samples_len-M+i]
+    Wp_bar = Wp_bar_samples_vec[-(i+1)]
     Wp,Up,bp = update.extract_W_weights(Wp_bar, d, ud)
 
-    Wy_bar = Wy_bar_samples_vec[samples_len-M+i]
+    Wy_bar = Wy_bar_samples_vec[-(i+1)]
     Wy,_,by = update.extract_W_weights(Wy_bar, d, 0)
     
     for j in range(0,T):
@@ -222,10 +251,10 @@ for i in range(0,M):
                                            Sigma_y, Wy, by.reshape(yd))
         
         train_y_vec[i,j] = y
-
+        train_y_vec2[i,j] = Wy @ h2[j]+by.reshape(yd)
 
 train_y = (np.sum(train_y_vec, axis = 0))/M
-
+train_y2 = (np.sum(train_y_vec2,axis=0))/M
 
 #Test predictions
 #Mean weights
@@ -255,18 +284,18 @@ test_y_vec = np.zeros((M,T_new))
 
 
 for i in range(0,M):
-    h = h_samples_vec[samples_len-M+i,-1,:]
+    h = h_samples_vec[-(i+1),-1,:]
     
-    Wz_bar = Wz_bar_samples_vec[samples_len-M+i]
+    Wz_bar = Wz_bar_samples_vec[-(i+1)]
     Wz,Uz,bz = update.extract_W_weights(Wz_bar, d, ud)
 
-    Wr_bar = Wr_bar_samples_vec[samples_len-M+i]
+    Wr_bar = Wr_bar_samples_vec[-(i+1)]
     Wr,Ur,br = update.extract_W_weights(Wr_bar, d, ud)
 
-    Wp_bar = Wp_bar_samples_vec[samples_len-M+i]
+    Wp_bar = Wp_bar_samples_vec[-(i+1)]
     Wp,Up,bp = update.extract_W_weights(Wp_bar, d, ud)
 
-    Wy_bar = Wy_bar_samples_vec[samples_len-M+i]
+    Wy_bar = Wy_bar_samples_vec[-(i+1)]
     Wy,_,by = update.extract_W_weights(Wy_bar, d, 0)
     
     u = y_last
@@ -287,14 +316,11 @@ test_y = (np.sum(test_y_vec, axis = 0))/M
 
 
 
-timestamp = time.time()
-path = 'images/{}'.format(timestamp)
 
-os.mkdir(path)
 
 
 plt.plot(t[1:stop], train_y.reshape(T), label = 'sample_train')
-
+plt.plot(t[1:stop], train_y2.reshape(T), label='Wyi@hi+byi_train')
 
 
 

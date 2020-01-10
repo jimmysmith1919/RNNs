@@ -16,9 +16,9 @@ import numpy as np
 seed = 10
 np.random.seed(seed)
 
-d = 20
+d = 10
 lr = .0001
-eps = 200
+eps = 150
 
 np.set_printoptions(precision=13)
 
@@ -54,8 +54,8 @@ T_new = 200 #Number of new steps to predict
 
 t = np.arange(0, end, dt)
 #data = np.sin((.06+.006)*t)
-data = np.sin((.05)*t)
-#data = np.sin((.2)*t)
+#data = np.sin((.05)*t)
+data = np.sin((.2)*t)
 
 
 ud = 1 #u dimension                                                            

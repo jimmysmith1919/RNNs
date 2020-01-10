@@ -1,7 +1,7 @@
 import numpy as np
 import var_updates as update
 import build_model as build
-import main_loop as loop
+import main_loop_debug as loop
 import generate_GRU as gen
 import plot_dist as plot_dist
 from scipy.special import expit
@@ -41,6 +41,18 @@ y_full = data[1:].reshape(T_full, ud, 1)
 T_test = T_full-T
 #u_test = data[stop-1:-1].reshape(T_test,ud,1)
 y_test = data[stop:].reshape(T_test,yd,1)
+
+
+
+'''
+plt.plot(data, label='full')
+plt.plot(t[1:stop], y.reshape(T), label='y')
+plt.plot(t[1:],y_full.reshape(T_full), label='y_full')
+plt.plot(u.reshape(T), label='u')
+plt.legend()
+plt.show()
+sys.exit()
+'''
 #####################
 
 
@@ -70,12 +82,16 @@ Wp_bar,Wp,Up,bp,Wp_mu_prior  = update.init_weights(L,U, Sigma_theta, d, ud)
 
 Wy_bar,Wy,_,by,Wy_mu_prior  = update.init_weights(L,U, Sigma_y_theta, d, 0)
 
+Wy_bar = np.zeros(Wy_bar.shape)
+Wy, _, by = update.extract_W_weights(Wy_bar, d, 0)
+Wy[0,0] = 1
+Wy_mu_prior = Wy_bar
 
-train_weights = True
+train_weights = False
 #Loop parameters
-N=1000
+N=10000
 log_check = N
-N_burn = int(.9*N)
+N_burn = int(.99*N)
 M = N-N_burn-1  #number of test samples should be less than N-N_burn
 T_check = 100 
 d_check = 5
@@ -137,7 +153,7 @@ rh = np.zeros((T+1,d,1))
 
 
 
-h_samples, z_samples, r_samples, v_samples, Wz_bar_samples,Wr_bar_samples, Wp_bar_samples, Wy_bar_samples, h_samples_vec, Wz_bar_samples_vec, Wr_bar_samples_vec, Wp_bar_samples_vec, Wy_bar_samples_vec, h_plot_samples, log_joint_vec = loop.gibbs_loop(N, N_burn, T, d,
+h_samples, z_samples, r_samples, v_samples, Wz_bar_samples,Wr_bar_samples, Wp_bar_samples, Wy_bar_samples, h_samples_vec, Wz_bar_samples_vec, Wr_bar_samples_vec, Wp_bar_samples_vec, Wy_bar_samples_vec, h_plot_samples, log_joint_vec,  z_samples_vec, r_samples_vec, v_samples_vec, h_samples_vec2 = loop.gibbs_loop(N, N_burn, T, d,
                                                  T_check, ud, yd, h0,
                                                  inv_var, Sigma_y_inv,
                                                  Sigma_theta, Sigma_y_theta,
@@ -147,6 +163,7 @@ h_samples, z_samples, r_samples, v_samples, Wz_bar_samples,Wr_bar_samples, Wp_ba
                                                  Uz, bz, Wr, Ur, br, Wp, Up,
                                                  bp, Wy, by, train_weights,
                                                 u, y, h, r, rh, z, log_check)
+
 
 
 Eh = h_samples/(N-N_burn-1)
@@ -161,7 +178,7 @@ EWy_bar = Wy_bar_samples/(N-N_burn-1)
 print('Eh')
 print(Eh)
 print('Ez')
-print(Ez[:100])
+print(Ez)
 print('Er')
 print(Er)
 print('Ev')
@@ -194,7 +211,9 @@ plt.plot(log_joint_vec)
 plt.savefig(path+'/log_joint')
 plt.close()
 ###
-    
+
+
+'''
 #Training Predictions
 
 #Mean weights
@@ -219,8 +238,8 @@ for j in range(0, T):
 
 
 
-plt.plot(t[1:],y_full.reshape(T_full), label = 'True')
-plt.plot(t[1:stop], train_y.reshape(T), label = 'mean_train')
+
+#plt.plot(t[1:stop], train_y.reshape(T), label = 'mean_train')
 #plt.plot(t[1:stop], train_y2.reshape(T), label = 'EWy@Eh+Eby_train')
 
 #samples_len = len(h_samples_vec[:,0,0])
@@ -228,7 +247,7 @@ plt.plot(t[1:stop], train_y.reshape(T), label = 'mean_train')
 train_y_vec = np.zeros((M,T))
 train_y_vec2 = np.zeros((M,T))
 
-print(Wz_bar_samples_vec.shape)
+
 
 
 for i in range(0,M):
@@ -261,11 +280,9 @@ for i in range(0,M):
 
 train_y = (np.sum(train_y_vec, axis = 0))/M
 train_y2 = (np.sum(train_y_vec2,axis=0))/M
+'''
 
-plt.plot(t[1:stop], train_y.reshape(T), label='sample_train')
-plt.plot(t[1:stop], train_y2.reshape(T), label='Wyi@hi+byi_train')
-
-
+'''
 #Test predictions
 #mean weights
 Wz,Uz,bz = update.extract_W_weights(EWz_bar, d, ud)
@@ -286,7 +303,7 @@ for j in range(0, T_new):
     u = yt
 
 ran = np.arange(stop, stop+T_new, dt)
-plt.plot(ran, test_y, label = 'mean_test' )
+#plt.plot(ran, test_y, label = 'mean_test' )
 
 test_y_vec = np.zeros((M,T_new))
 
@@ -322,13 +339,66 @@ for i in range(0,M):
 
 
 test_y = (np.sum(test_y_vec, axis = 0))/M
+'''
+
+
+
+#plt.plot(t[1:stop], train_y.reshape(T), label='sample_train')
+#plt.plot(t[1:stop], train_y2.reshape(T), label='Wyi@hi+byi_train')
+
+#plt.plot(ran, test_y, label='sample_test')
 
 
 
 
+h_calc = (1-z_samples_vec)*h_samples_vec2[:,:-1]+z_samples_vec*(2*v_samples_vec-1)
+
+h_calc = np.sum(h_calc, axis=0)/M
 
 
-plt.plot(ran, test_y, label='sample_test')
+h_calc_mean = (1-Ez)*Eh[:-1]+Ez*(2*Ev-1)
+
+
+
+f_vec = np.zeros((M,T,d))
+fr_vec = np.zeros((M,T,d))
+fp_vec = np.zeros((M,T,d))
+for j in range(0,M):
+    x = np.concatenate((h_samples_vec2[j,:-1,:], u.reshape(T,ud), np.ones((T,1))), axis=1)
+    xr = np.concatenate((r_samples_vec[j]*h_samples_vec2[j,:-1,:], u.reshape(T,ud), np.ones((T,1))), axis=1)
+    
+    f = Wz_bar_samples_vec[j] @ x.reshape(T,d+ud+1,1)
+    fr = Wr_bar_samples_vec[j] @ x.reshape(T,d+ud+1,1)
+    fp = Wp_bar_samples_vec[j] @ xr.reshape(T,d+ud+1,1)
+    f_vec[j] = f[:,:,0]
+    fr_vec[j] = fr[:,:,0]
+    fp_vec[j] = fp[:,:,0]
+    
+sig_f_vec= expit(f_vec)
+sig_fr_vec= expit(fr_vec)
+sig_fp_vec= expit(2*fp_vec)
+
+Ez2 = np.sum(sig_f_vec, axis=0)/M
+Er2 = np.sum(sig_fr_vec, axis=0)/M
+Ev2 = np.sum(sig_fp_vec, axis=0)/M
+
+
+
+
+plt.plot(t[1:],y_full.reshape(T_full), label = 'True')
+plt.plot(t[1:stop], Eh[1:,0], label='Eh')
+plt.plot(t[1:stop], h_calc[:,0], label='(1-z)h_mint+z(2v-1)', )
+#plt.plot(t[1:stop], h_calc_mean[:,0,0], label = '(1-ez)Eh_mint+Ez(2Ev-1)')
+#plt.plot(t[1:stop], Ez[:,0,0], label = 'Ez')
+#plt.plot(t[1:stop], Ez2[:,0], label = 'Ez_prior')
+plt.plot(t[1:stop], Er[:,0,0], label = 'Er')
+plt.plot(t[1:stop], Er2[:,0], label = 'Er_prior')
+
+#plt.plot(t[1:stop], Ev[:,0,0], label = 'Ev')
+#plt.plot(t[1:stop], Ev2[:,0], label = 'Ev_prior')
+
+
+
 
 plt.legend()
 plt.title('N={}, M={}, Train_Weights={}, d={}, Var_h={}, Var_y={}'.format(N,M,train_weights,d,var, var_y ))

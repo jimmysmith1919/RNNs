@@ -13,11 +13,17 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
                Sigma_y_theta,Sigma_y, Wz_mu_prior, Wr_mu_prior, Wp_mu_prior,
                Wy_mu_prior, Wz, Uz, bz, Wr, Ur, br, Wp, Up, bp, Wy, by,
                train_weights, u, y, h, r, rh, z, log_check):
+
     ###
     h_plot_samples = np.zeros((N,d))
     log_joint_vec = []
     ###
     h_samples_vec = np.zeros((N-N_burn-1,T,d))
+    h_samples_vec2 = np.zeros((N-N_burn-1,T+1,d))
+    z_samples_vec = np.zeros((N-N_burn-1,T,d))
+    r_samples_vec = np.zeros((N-N_burn-1,T,d))
+    v_samples_vec = np.zeros((N-N_burn-1,T,d))
+    
     Wz_bar_samples_vec = np.zeros((N-N_burn-1,d,d+ud+1))
     Wr_bar_samples_vec = np.zeros((N-N_burn-1,d,d+ud+1))
     Wp_bar_samples_vec = np.zeros((N-N_burn-1,d,d+ud+1))
@@ -38,7 +44,6 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
     Wy_bar = Wy_mu_prior
     
     for k in range(0,N):
-
         
         #Update pgs
         omega_z = update.pg_update(1, h, u, Wz, Uz, bz, T, d)
@@ -68,6 +73,7 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
 
            
         #Update hs
+        
         #Kalman sampling
         J_dyn_11,J_dyn_22,J_dyn_21,J_obs,J_ini = build.build_prec_x_kalman(
             inv_var, Sigma_y_inv, Wy,
@@ -87,7 +93,7 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         
         h = h.reshape(T,d,1)
         h = np.concatenate((h0.reshape(1,d,1), h), axis=0)
-
+        
         '''
         #Full T*dXT*d matrix
         prec = build.build_prec_x(inv_var, Sigma_y_inv, Wy,
@@ -136,7 +142,7 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
             Wp_bar, Wp, Up, bp = update.Wbar_update(v, gamma, rx, rxrxT,
                                                     1/Sigma_theta,
                                                     Wp_mu_prior,T,d,ud)
-        
+            
             #Update y weights
             x = np.concatenate((h[1:,:,:], np.ones((T,1,1))), axis=1)
             xxT = (x[...,None]*x[:,None,:]).reshape(T,d+1,d+1)
@@ -146,6 +152,11 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
             
         if k > N_burn:
             h_samples_vec[k-N_burn-1] = h[1:].reshape(T,d)
+            h_samples_vec2[k-N_burn-1] = h.reshape(T+1,d)
+            z_samples_vec[k-N_burn-1] = z.reshape(T,d)
+            r_samples_vec[k-N_burn-1] = r.reshape(T,d)
+            v_samples_vec[k-N_burn-1] = v.reshape(T,d)
+
             h_samples += h
             z_samples += z
             r_samples += r
@@ -171,7 +182,6 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         
         
         ###
-   
         
-    return h_samples, z_samples, r_samples, v_samples, Wz_bar_samples, Wr_bar_samples, Wp_bar_samples, Wy_bar_samples, h_samples_vec, Wz_bar_samples_vec, Wr_bar_samples_vec, Wp_bar_samples_vec, Wy_bar_samples_vec, h_plot_samples, log_joint_vec 
+    return h_samples, z_samples, r_samples, v_samples, Wz_bar_samples, Wr_bar_samples, Wp_bar_samples, Wy_bar_samples, h_samples_vec, Wz_bar_samples_vec, Wr_bar_samples_vec, Wp_bar_samples_vec, Wy_bar_samples_vec, h_plot_samples, log_joint_vec, z_samples_vec, r_samples_vec, v_samples_vec, h_samples_vec2 
     
