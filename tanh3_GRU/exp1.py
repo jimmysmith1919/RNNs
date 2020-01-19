@@ -19,8 +19,8 @@ import time
 np.random.seed(23779)
 
 
-T=6
-d=4
+T=5
+d=3
 ud = 3
 yd = 3
 h0 = 0*np.ones(d)
@@ -143,10 +143,11 @@ z = np.random.binomial(1,Ez, size=(T,d,1))
 
 rh = np.zeros((T+1,d,1))
 #Loop parameters
-
-N = 2000000
-M = 2000000
-
+alpha=1.3
+tau=1
+N = 100
+M = 100
+log_check = N
 h_samples =0
 z_samples =0
 r_samples =0
@@ -163,7 +164,9 @@ d_check = 1
 
 
 
-h_samples, z_samples, r_samples, v_samples, Wz_bar_samples,Wr_bar_samples, Wp_bar_samples, Wy_bar_samples, h_samples_vec, Wz_bar_samples_vec, Wr_bar_samples_vec, Wp_bar_samples_vec, Wy_bar_samples_vec = loop.gibbs_loop(N, N_burn, T, d,
+
+
+h_samples, z_samples, r_samples, v_samples, Wz_bar_samples,Wr_bar_samples, Wp_bar_samples, Wy_bar_samples, h_samples_vec, Wz_bar_samples_vec, Wr_bar_samples_vec, Wp_bar_samples_vec, Wy_bar_samples_vec, h_plot_samples, log_joint_vec = loop.gibbs_loop(N, N_burn, T, d,
                                                  T_check, ud, yd, h0,
                                                  inv_var, Sigma_y_inv,
                                                  Sigma_theta, Sigma_y_theta,
@@ -172,7 +175,10 @@ h_samples, z_samples, r_samples, v_samples, Wz_bar_samples,Wr_bar_samples, Wp_ba
                                                  Wp_mu_prior, Wy_mu_prior, Wz,
                                                  Uz, bz, Wr, Ur, br, Wp, Up,
                                                  bp, Wy, by, train_weights,
-                                                 u, y, h, r, rh, z)
+                                                                                                                                                                                                                                                          u, y, h, r, rh, z, log_check, alpha, tau)
+
+
+
 
 
 '''

@@ -45,7 +45,7 @@ y_test = data[stop:].reshape(T_test,yd,1)
 
 
 ##Model Initialization
-d=10
+d=5
 h0 = 0*np.ones(d)
 var=.1
 inv_var = np.ones(d)*1/var
@@ -73,7 +73,7 @@ Wy_bar,Wy,_,by,Wy_mu_prior  = update.init_weights(L,U, Sigma_y_theta, d, 0)
 
 train_weights = True
 #Loop parameters
-N=1000
+N=100
 log_check = N
 N_burn = int(.9*N)
 M = N-N_burn-1  #number of test samples should be less than N-N_burn

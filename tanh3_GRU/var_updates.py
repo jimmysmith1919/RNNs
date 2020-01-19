@@ -3,6 +3,7 @@ from scipy.special import expit
 from pypolyagamma import PyPolyaGamma
 import sys
 
+
 def update_normal_dim(prec, prec_muT):
     covar = np.linalg.solve(prec, np.identity(len(prec[:,0])))
     mu = covar @ prec_muT 
@@ -10,6 +11,19 @@ def update_normal_dim(prec, prec_muT):
 
 def update_bern(f):
     return expit(f)
+
+def update_cat3(cond):
+    print(cond.shape)
+    print(cond)
+    return np.random.multinomial(1,cond)
+
+def vectorized_cat(prob_matrix, items):
+    prob_matrix=prob_matrix.T
+    s = prob_matrix.cumsum(axis=0)
+    r = np.random.rand(prob_matrix.shape[1])
+    k = (s < r).sum(axis=0)
+    return items[k]
+
 
 
 def sample_post_pg(b,g,T,d):
@@ -25,6 +39,38 @@ def sample_post_pg(b,g,T,d):
 def pg_update(bpg, h, u, W, U, b, T, d):
     g = W @ h[:-1,:,:] + U @ u + b
     return sample_post_pg(bpg,g,T,d)
+
+def sample_post_gamma(b,g,T,d):
+    seed =np.random.randint(0,1000000000)
+    pg = PyPolyaGamma(seed)
+    n=T*d*2
+    out = np.empty(n)
+    pg.pgdrawv(b, g, out)
+
+    half = int(len(out)/2)
+    half1 = out[:half].reshape(T,d,1)
+    half2 =out[half:].reshape(T,d,1)
+
+    out = np.concatenate((half1, half2), axis= 2)
+    return out
+
+
+def gamma_update(h, v, u, W, U, b, T, d, alpha, tau):
+    fp = W @ h[:-1,:,:] + U @ u + b
+    zeta1 = (-fp-alpha)/tau
+    zeta2 = (fp-alpha)/tau
+    zeta = np.concatenate((zeta1,zeta2), axis=2)
+
+    v_cat = np.argmax(v,axis=2)
+    v_cat_flat = v_cat.ravel()
+    
+    indgreat1 = v_cat_flat >= 0
+    indgreat2 = v_cat_flat >= 1
+    indgreat = np.concatenate((indgreat1, indgreat2))
+    
+    zeta_flat = np.concatenate((zeta1.ravel(), zeta2.ravel()))
+    return sample_post_gamma(indgreat.astype(np.double),zeta_flat,T,d)
+
 
 
 def get_Wbar_params(z,omega,x,xxT, Sigma_inv,mu,T,d,ud):
