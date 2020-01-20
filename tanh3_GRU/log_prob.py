@@ -3,6 +3,7 @@ import sys
 import PG_int as PG
 from scipy.stats import bernoulli as bern
 from scipy.stats import multivariate_normal as MVN
+from scipy.stats import norm
 from scipy.special import expit
 
 def log_prob_yt(yt, ht, Wy, by, sig_y_inv, yd):
@@ -19,7 +20,52 @@ def yt_wrapper(y0,y1,y2, ht, Wy, by, sig_y_inv, yd):
     yt[2] = y2
     val = np.exp(log_prob_yt(yt, ht, Wy, by, sig_y_inv, yd))
     return val[0][0]
-    
+
+
+def h_prior_logpdf(h,z,v,fp,inv_var,T,d, alpha):
+
+    one_z_h_minus = (1-z)*h[:-1]
+    scale = np.sqrt(1/inv_var)*np.ones((T,d))
+    scale = scale.reshape(-1,d,1)
+
+    V1 = -np.ones((T,d,1))
+    V2 = np.ones((T,d,1))
+    V3 = 1/alpha*fp
+
+    V = np.zeros((T,d))
+    V += v[:,:,0]*V1[:,:,0]
+    V += v[:,:,1]*V2[:,:,0]
+    V += v[:,:,2]*V3[:,:,0]
+
+    V = V.reshape(T,d,1)
+
+    mu = one_z_h_minus+z*V
+    logpdf = norm.logpdf(mu,scale)
+    return logpdf
+
+def z_prior_logpmf(z,h,W,U,b,u):
+    f = W @ h[:-1,:,:] + U @ u + b
+    mu = expit(f)
+    return bern.logpmf(z,mu)
+
+
+
+def v_prior_logpmf(h,v,fp,T,d, alpha, tau):
+
+    zeta1 = (-fp-alpha)/tau
+    zeta2 = (fp-alpha)/tau
+
+    pv1 = expit(zeta1)
+    pv2 = np.exp(np.log(expit(zeta2))+np.log(expit(-zeta1)))
+    pv3 = 1-(pv1+pv2)
+
+    pv = np.zeros((T,d))
+    pv += v[:,:,0]*pv1[:,:,0]
+    pv += v[:,:,1]*pv2[:,:,0]
+    pv += v[:,:,2]*pv3[:,:,0]
+
+    pv = pv.reshape(T,d,1)
+    return np.log(pv)
 
 def log_prob_ht(ht, h_tmin, zt, vt, rt, Wp, Up, bp, ut, sig_h_inv, d, alpha):
     

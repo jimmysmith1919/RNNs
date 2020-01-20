@@ -85,8 +85,63 @@ def get_Wbar_params(z,omega,x,xxT, Sigma_inv,mu,T,d,ud):
         rhs[i,:,:] = np.sum(zx, axis=0)+(Sigma_inv[i,:]*mu[i,:]
                                          ).reshape(d+ud+1,1)
     W_covar = np.linalg.inv(A)
-    W_mu = (W_covar @ rhs)#.reshape(d,d+ud+1)
+    W_mu = (W_covar @ rhs)
     return W_covar, W_mu
+
+
+# get_Wbar_params(z,omega,x,xxT, Sigma_inv,mu,T,d,ud):
+
+def get_Wbar_p_params(z,gamma,v,x,xxT,Sigma_inv,mu,T,d, ud,
+                      alpha, tau, inv_var):
+    A = np.zeros((d, d+ud+1,d+ud+1))
+    rhs = np.zeros((d,d+ud+1,1))
+    for i in range(0,d):
+        mid_term = (1/tau**2)*(gamma[:,i,0].reshape(T,1,1) +
+                               gamma[:,i,1].reshape(T,1,1) )*xxT
+        
+        check = v[:,i,2]==1
+
+        last_jh_term = 0
+        
+        if np.sum(check) > 0:
+            z_check=z[check,i].reshape(-1,1,1)
+            zrx_term = np.zeros(mid_term.shape)
+            zrx_term[check] += inv_var[i]*(1/alpha**2)*z_check*xxT[check]
+            mid_term += zrx_term
+
+
+            last_jh_term = np.zeros((x.shape))
+            last_jh_term[check] += inv_var[i]*(1/alpha)*z_check*x[check]
+             
+        
+        A[i,:,:] = np.sum(mid_term, axis = 0) + np.diag(Sigma_inv[i,:])
+        
+
+        
+        ind1 = v[:,i,0]==1
+        ind1 = ind1.reshape(-1,1,1)
+
+        ind2 = v[:,i,1]==1
+        ind2 = ind2.reshape(-1,1,1)
+
+        ind_great_2 = v[:,i,0]==0
+        ind_great_2 = ind_great_2.reshape(-1,1,1)
+
+        jh = -1/tau*(ind1-1/2)*x
+        jh += 1/tau*(ind2-ind_great_2/2)*x
+        
+        jh += alpha*(1/tau**2)*(-gamma[:,i,0].reshape(T,1,1) +
+                              gamma[:,i,1].reshape(T,1,1) )*x
+        jh += last_jh_term
+
+
+        rhs[i,:,:] = np.sum(jh, axis=0)+(Sigma_inv[i,:]*mu[i,:]
+                                         ).reshape(d+ud+1,1)
+    W_covar = np.linalg.inv(A)
+    W_mu = (W_covar @ rhs)
+    
+    return W_covar, W_mu
+
 
 def get_Wbar_y_params(x,xxT,y,Sigma_y_inv,Sigma_y_theta_inv,mu_prior,T,d,yd):
     A = np.zeros((yd,d+1,d+1))
@@ -133,6 +188,14 @@ def extract_W_weights(W_bar, d, ud):
 
 def Wbar_update(z,omega,x,xxT,Sigma_inv,mu,T,d,ud):
     W_covar, W_mu = get_Wbar_params(z,omega,x,xxT,Sigma_inv,mu,T,d,ud)
+    W_bar = sample_weights(W_covar, W_mu, d, ud)
+    W,U,b = extract_W_weights(W_bar, d, ud)
+    return W_bar, W, U, b
+
+def Wbar_p_update(z,gamma,v,x,xxT,Sigma_inv,mu,T,d,ud, alpha, tau, inv_var):
+    W_covar, W_mu = get_Wbar_p_params(z,gamma,v,x,xxT,
+                                      Sigma_inv,mu,T,d, ud,
+                                      alpha, tau, inv_var)
     W_bar = sample_weights(W_covar, W_mu, d, ud)
     W,U,b = extract_W_weights(W_bar, d, ud)
     return W_bar, W, U, b

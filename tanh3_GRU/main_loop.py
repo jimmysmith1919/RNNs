@@ -43,8 +43,6 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         #Update omega pgs
         omega_z = update.pg_update(1, h, u, Wz, Uz, bz, T, d)
         omega_r = update.pg_update(1, h, u, Wr, Ur, br, T, d)
-
-
         
         
         rh[:-1,:,:] = r*h[:-1,:,:]
@@ -54,50 +52,29 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         items = np.arange(3)
         v = update.vectorized_cat(cond_v, items)
         v = np.eye(3)[v]
-        v = v.reshape(T,d,d)
-
+        v = v.reshape(T,d,d)        
         
         #update gamma pg
         gamma = update.gamma_update(rh, v, u, Wp, Up, bp, T, d, alpha, tau)
                 
-            
-        ####FIXX
-        '''
-        Ev = np.zeros((T,d,3))
-        Ev[0,0,0]=.1
-        Ev[0,0,1]=.9
-        Ev[1,1,0]=0
-        Ev[1,1,1]=.3
-        Ev[2,2,0]=.2
-        Ev[2,2,1]=.6
-        Ev[4,2,0]=.8
-        Ev[4,2,1]=.1
-        
-
-        v = np.zeros((T,d,3))
-        for j in range(0,T):
-            print(j)
-            print(Ev[j])
-            v[j] = np.random.multinomial(1, Ev[j])
-        '''
-        
-    
-        #####
-        
+       
         #Update Zs
         fz = build.build_z_param(h,v,r,inv_var.reshape(d,1), u,
                                  Wz, Uz, bz, Wp, Up, bp, d, alpha)
         Ez = update.update_bern(fz)
         z = np.random.binomial(1,Ez, size=(T,d,1))
 
-        '''
+             
+          
         #Update r's
         for j in range(0,d):
-            frd = build.build_rd_param(h,u,v,gamma,r,Wp,Up,bp,Wr,Ur,br,j)
+            frd=build.build_rd_param(h,z,v,r,inv_var,u,
+                                     Wp,Up,bp,Wr,Ur,br,alpha,tau,T,d,j)
             Erd = update.update_bern(frd)
             r[:,j,:] = np.random.binomial(1,Erd, size=(T,1))
-        '''
+            
 
+        
         #####
             
            
@@ -154,7 +131,7 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
 
         if train_weights == True:
         
-             #Update Weights
+            #Update Weights
             x = np.concatenate((h[:-1,:,:],u, np.ones((T,1,1))), axis=1)
             xxT = (x[...,None]*x[:,None,:]).reshape(T,d+ud+1,d+ud+1)
 
@@ -167,12 +144,13 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
                                                     Wr_mu_prior,T,d,ud)
         
             #slight adjustment to x for tanh approx
-            rx = 2*np.concatenate((h[:-1,:,:]*r,u, np.ones((T,1,1))), axis=1)
+            rx = np.concatenate((h[:-1,:,:]*r,u, np.ones((T,1,1))), axis=1)
             rxrxT = (rx[...,None]*rx[:,None,:]).reshape(T,d+ud+1,d+ud+1)
-            Wp_bar, Wp, Up, bp = update.Wbar_update(v, gamma, rx, rxrxT,
+            Wp_bar, Wp, Up, bp = update.Wbar_p_update(z, gamma,v,rx, rxrxT,
                                                     1/Sigma_theta,
-                                                    Wp_mu_prior,T,d,ud)
-        
+                                                      Wp_mu_prior,T,d,ud,
+                                                      alpha, tau, inv_var)
+
             #Update y weights
             x = np.concatenate((h[1:,:,:], np.ones((T,1,1))), axis=1)
             xxT = (x[...,None]*x[:,None,:]).reshape(T,d+1,d+1)
@@ -201,32 +179,7 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         sig_h_inv = np.diag(inv_var)
         if k%log_check == 0:
 
-            ####FIXX
-            Ev = np.zeros((T,d,3))
-            Ev[0,0,0]=.1
-            Ev[0,0,1]=.9
-            Ev[1,1,0]=0
-            Ev[1,1,1]=.3
-            Ev[2,2,0]=.2
-            Ev[2,2,1]=.6
-            Ev[4,2,0]=.8
-            Ev[4,2,1]=.1
-        
-
-            v = np.zeros((T,d,3))
-
-            
-            for j in range(0,T):
-                for k in range(0,d):
-                    v[j,k] = np.random.multinomial(1, Ev[j,k])
-
-
-            old_gamma = gamma
-            gamma = np.zeros((T,d,2))
-            gamma[:,:,0]=old_gamma[:,:,0]
-            gamma[:,:,1]=old_gamma[:,:,0]*.3
-                    
-            
+                   
             log_joint_vec.append( log_prob.full_log_joint_no_weights(T, d, yd,
                                                                      u, y, h, sig_h_inv, z, v, r, gamma, omega_z, omega_r,
                               Wz, Uz, bz, Wr, Ur, br,

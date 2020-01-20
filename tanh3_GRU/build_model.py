@@ -3,7 +3,7 @@ import numpy as np
 from PG_int import pgpdf
 import sys
 from scipy.special import expit
-from scipy.stats import norm
+import log_prob
 
 def build_prec_x(inv_var, Sigma_y_inv, Wy, Wz, pg_z, z, Wr,
                  pg_r, r, Wp, pg_v, v, T, d, tau, alpha):
@@ -267,6 +267,7 @@ def build_rd_param(h,u,v,gamma,r,Wp,Up,bp,Wr,Ur,br,dim):
     return param
 '''
 
+'''
 def build_rd_param(h,u,v,gamma,r,Wp,Up,bp,Wr,Ur,br,dim):
     
     hmin_Wd = Wp[:, dim]*h[:-1,dim,:]
@@ -288,48 +289,97 @@ def build_rd_param(h,u,v,gamma,r,Wp,Up,bp,Wr,Ur,br,dim):
      
     param += Wr[dim,:] @ h[:-1,:,:] + Ur[dim,:] @ u + br[dim,:]
     return param
-
-def build_v_param(h,z,rh,u,Wp,Up, bp, inv_var,T,d, alpha, tau):
-    
-
+'''
+'''
+def build_v_param_old(h,z,rh,u,Wp,Up, bp, inv_var,T,d, alpha, tau):
     fp = (Wp @ rh[:-1,:,:] + Up @ u + bp)
 
     zeta1 = (-fp-alpha)/tau
     zeta2 = (fp-alpha)/tau
 
-    print(zeta1.shape)
-    print(zeta1)
-
     pv1 = expit(zeta1)
     pv2 = expit(zeta2)*expit(-zeta1)
-    pv3 = expit(-zeta1)*expit(-zeta2)
-
-    one_z_h_minus = (1-z)*h[:-1]
-    scale = np.sqrt(1/inv_var)*np.ones((T,d))
-    scale = scale.reshape(-1,d,1)
-
-    V1 = -np.ones((T,d,1))
-    mu1 = one_z_h_minus+z*V1
-
-    V2 = np.ones((T,d,1))
-    mu2 = one_z_h_minus+z*V2
-
-    V3 = 1/alpha*fp
-    mu3 = one_z_h_minus+z*V3
-
+    pv3 = 1-(pv1+pv2)
     
+    pdf = []
+    for i in range(0,3):
+        v = np.zeros((T,d,d))
+        v[:,:,i] += 1
+        pdf.append(log_prob.h_prior_pdf(h,z,v,fp,inv_var,T,d, alpha))
 
-    pdf1 = norm.pdf(mu1,scale)
-    pdf2 = norm.pdf(mu2,scale)
-    pdf3 = norm.pdf(mu3,scale)
-    
+    pdf1 = pdf[0]
+    pdf2 = pdf[1]
+    pdf3 = pdf[2]
+        
     norm_c = pdf1*pv1+pdf2*pv2+pdf3*pv3
 
     cond1 = pdf1*pv1/norm_c
     cond2 = pdf2*pv2/norm_c
     cond3 = pdf3*pv3/norm_c
 
+    return np.concatenate((cond1,cond2,cond3), axis=2)
+'''
+def build_v_param(h,z,rh,u,Wp,Up, bp, inv_var,T,d, alpha, tau):
+    fp = (Wp @ rh[:-1,:,:] + Up @ u + bp)
+
+    log_pv = []
+    for i in range(0,3):
+        v = np.zeros((T,d,d))
+        v[:,:,i] += 1
+        log_pv.append(log_prob.v_prior_logpmf(h,v,fp,T,d, alpha, tau))
+    
+    log_pv1 = log_pv[0]
+    log_pv2 = log_pv[1]
+    log_pv3 = log_pv[2]
+
+        
+    log_pmf = []
+    for i in range(0,3):
+        v = np.zeros((T,d,d))
+        v[:,:,i] += 1
+        log_pmf.append(log_prob.h_prior_logpdf(h,z,v,fp,inv_var,T,d, alpha))
+
+    log_pmf1 = log_pmf[0]
+    log_pmf2 = log_pmf[1]
+    log_pmf3 = log_pmf[2]
+
+
+    logpost1 = log_pmf1+log_pv1
+    logpost2 = log_pmf2+log_pv2
+    logpost3 = log_pmf3+log_pv3
+    
+    lognorm_c = np.log(np.exp(logpost1)+np.exp(logpost2)+np.exp(logpost3))
+
+    cond1 = np.exp( logpost1 - lognorm_c)
+    cond2 = np.exp(logpost2 - lognorm_c )
+    cond3 = 1-(cond1+cond2)
     
     return np.concatenate((cond1,cond2,cond3), axis=2)
 
 
+
+def build_rd_param(h,z,v,r,inv_var,u,Wp,Up,bp,Wr,Ur,br,alpha,tau,T,d,dim):
+
+    log_terms = []
+    for i in range(0,2):
+        r[:,dim]=i
+        rh = np.zeros((T+1,d,1))
+        rh[:-1,:,:] = r*h[:-1,:,:]
+        fp = (Wp @ rh[:-1,:,:] + Up @ u + bp)
+    
+        logph = log_prob.h_prior_logpdf(h,z,v,fp,inv_var,T,d,alpha)
+        logph = np.sum(logph, axis=1)
+    
+        logpv = log_prob.v_prior_logpmf(h,v,fp,T,d, alpha, tau)
+        logpv = np.sum(logpv, axis=1)
+    
+        logpr = log_prob.z_prior_logpmf(r[:,dim],h,Wr[dim],Ur[dim],br[dim],u)
+
+        log_terms.append(logph+logpv+logpr)
+
+    log_den = np.log(np.exp(log_terms[0])+np.exp(log_terms[1]))
+    log_cond = log_terms[1]-log_den
+    
+    cond = np.exp(log_cond)
+    
+    return cond
