@@ -90,6 +90,11 @@ def entropy_q_vec(qdf):
     logqdf = np.nan_to_num(logqdf,copy=False)
     return -qdf*logqdf
 
+'''
+omega = 1
+a = pgpdf(omega, 0, 0, trunc=200)
+print(a)
+'''
 
 
 

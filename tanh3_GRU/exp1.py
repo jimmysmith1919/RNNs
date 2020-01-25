@@ -1,7 +1,7 @@
 import numpy as np
 import var_updates as update
 import build_model as build
-import main_loop as loop
+import unit_tests_main_loop as loop
 import generate_GRU as gen
 import plot_dist as plot_dist
 from scipy.special import expit
@@ -14,19 +14,23 @@ import os
 import time
 
 
-#seed = np.random.randint(0,100000)
-#print(seed)
-np.random.seed(23779)
+seed = np.random.randint(0,100000)
+print(seed)
+np.random.seed(seed)
+#np.random.seed(24356)
+#np.random.seed(67492)
+#np.random.seed(29302)
 
-
-T=5
-d=3
-ud = 3
+T= 6
+d= 5
+ud = 4
 yd = 3
 h0 = 0*np.ones(d)
+#h0 = np.random.rand(d)
 u = np.random.uniform(-1,1,size=(T,ud,1))
-var=.1
-inv_var = np.ones(d)*1/var
+#var=.1
+inv_var = 1/np.random.rand(d)#np.ones(d)*1/var
+
 
 var_y = .1
 Sigma_y = var_y*np.identity(yd)
@@ -118,8 +122,6 @@ for i in range(0,M):
 
 y = y_vec/M
 
-
-
 ###############################################
 
 
@@ -163,6 +165,20 @@ T_check = 3
 d_check = 1
 
 
+#Wy = np.zeros(Wy.shape)
+#by = np.zeros(by.shape)
+
+#Wr = np.zeros(Wr.shape)
+#Ur = np.zeros(Ur.shape)
+#br = np.zeros(br.shape)
+ 
+#Wz = np.zeros(Wz.shape)
+#Uz = np.zeros(Uz.shape)
+#bz = np.zeros(bz.shape)
+
+#Wp = np.zeros(Wp.shape)
+#Up = np.zeros(Up.shape)
+#bp = np.zeros(bp.shape)
 
 
 

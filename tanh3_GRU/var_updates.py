@@ -56,6 +56,7 @@ def sample_post_gamma(b,g,T,d):
 
 
 def gamma_update(h, v, u, W, U, b, T, d, alpha, tau):
+    #Plug in rh for h
     fp = W @ h[:-1,:,:] + U @ u + b
     zeta1 = (-fp-alpha)/tau
     zeta2 = (fp-alpha)/tau
@@ -91,8 +92,9 @@ def get_Wbar_params(z,omega,x,xxT, Sigma_inv,mu,T,d,ud):
 
 # get_Wbar_params(z,omega,x,xxT, Sigma_inv,mu,T,d,ud):
 
-def get_Wbar_p_params(z,gamma,v,x,xxT,Sigma_inv,mu,T,d, ud,
+def get_Wbar_p_params(h, z,gamma,v,x,xxT,Sigma_inv,mu,T,d, ud,
                       alpha, tau, inv_var):
+    h = h[1:]
     A = np.zeros((d, d+ud+1,d+ud+1))
     rhs = np.zeros((d,d+ud+1,1))
     for i in range(0,d):
@@ -111,7 +113,9 @@ def get_Wbar_p_params(z,gamma,v,x,xxT,Sigma_inv,mu,T,d, ud,
 
 
             last_jh_term = np.zeros((x.shape))
-            last_jh_term[check] += inv_var[i]*(1/alpha)*z_check*x[check]
+            
+            last_jh_term[check] += h[check,i].reshape(-1,1,1)*inv_var[i]*(
+                1/alpha)*z_check*x[check]
              
         
         A[i,:,:] = np.sum(mid_term, axis = 0) + np.diag(Sigma_inv[i,:])
@@ -186,19 +190,22 @@ def extract_W_weights(W_bar, d, ud):
     b = W_bar[:,-1].reshape(len(W_bar[:,-1]),1)
     return W, U, b
 
+
 def Wbar_update(z,omega,x,xxT,Sigma_inv,mu,T,d,ud):
     W_covar, W_mu = get_Wbar_params(z,omega,x,xxT,Sigma_inv,mu,T,d,ud)
     W_bar = sample_weights(W_covar, W_mu, d, ud)
     W,U,b = extract_W_weights(W_bar, d, ud)
     return W_bar, W, U, b
 
-def Wbar_p_update(z,gamma,v,x,xxT,Sigma_inv,mu,T,d,ud, alpha, tau, inv_var):
-    W_covar, W_mu = get_Wbar_p_params(z,gamma,v,x,xxT,
+
+
+def Wbar_p_update(h, z,gamma,v,x,xxT,Sigma_inv,mu,T,d,ud, alpha, tau, inv_var):
+    W_covar, W_mu = get_Wbar_p_params(h, z,gamma,v,x,xxT,
                                       Sigma_inv,mu,T,d, ud,
                                       alpha, tau, inv_var)
     W_bar = sample_weights(W_covar, W_mu, d, ud)
     W,U,b = extract_W_weights(W_bar, d, ud)
-    return W_bar, W, U, b
+    return W_bar, W, U, b, W_mu, W_covar
 
 def Wbar_y_update(x,xxT,y,Sigma_y_inv, Sigma_y_theta_inv, mu_prior,T,d,yd):
     W_covar, W_mu = get_Wbar_y_params(x,xxT,y,Sigma_y_inv,

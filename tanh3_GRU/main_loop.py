@@ -48,29 +48,27 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         rh[:-1,:,:] = r*h[:-1,:,:]
         #Update v
         cond_v = build.build_v_param(h,z,rh,u,Wp,Up,bp,inv_var,T,d,alpha,tau)
-        cond_v=cond_v.reshape(T*d,d)
+        cond_v=cond_v.reshape(T*d,3)
         items = np.arange(3)
         v = update.vectorized_cat(cond_v, items)
         v = np.eye(3)[v]
-        v = v.reshape(T,d,d)        
-        
+        v = v.reshape(T,d,3)        
+
         #update gamma pg
         gamma = update.gamma_update(rh, v, u, Wp, Up, bp, T, d, alpha, tau)
                 
        
         #Update Zs
-        fz = build.build_z_param(h,v,r,inv_var.reshape(d,1), u,
-                                 Wz, Uz, bz, Wp, Up, bp, d, alpha)
-        Ez = update.update_bern(fz)
+        Ez = build.build_z_param(h,v,rh,inv_var, u,
+                                 Wz, Uz, bz, Wp, Up, bp,T, d, alpha)
         z = np.random.binomial(1,Ez, size=(T,d,1))
 
              
           
         #Update r's
         for j in range(0,d):
-            frd=build.build_rd_param(h,z,v,r,inv_var,u,
+            Erd=build.build_rd_param(h,z,v,r,inv_var,u,
                                      Wp,Up,bp,Wr,Ur,br,alpha,tau,T,d,j)
-            Erd = update.update_bern(frd)
             r[:,j,:] = np.random.binomial(1,Erd, size=(T,1))
             
 
@@ -157,7 +155,12 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
             Wy_bar, Wy, by = update.Wbar_y_update(x,xxT,y, Sigma_y_inv,
                                                   1/Sigma_y_theta, Wy_mu_prior,
                                                   T,d,yd)
-            
+
+
+        logy_pdf = log_prob.y_log_pdf(h, Wy, by, Sigma_y_inv, T,yd)
+        print(logy_pdf)
+        sys.exit()
+        
         if k > N_burn:
             h_samples_vec[k-N_burn-1] = h[1:].reshape(T,d)
             h_samples += h

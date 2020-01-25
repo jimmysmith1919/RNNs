@@ -6,24 +6,15 @@ from scipy.stats import multivariate_normal as MVN
 from scipy.stats import norm
 from scipy.special import expit
 
-def log_prob_yt(yt, ht, Wy, by, sig_y_inv, yd):
-    val = -1/2*(yt-(Wy @ ht + by)).T @ sig_y_inv @ (yt-(Wy @ ht + by))
-    val += -np.log((2*np.pi)**(yd/2)*np.linalg.det(
-        np.linalg.inv(sig_y_inv))**(1/2))
-    return val
 
-
-def yt_wrapper(y0,y1,y2, ht, Wy, by, sig_y_inv, yd):
-    yt = np.zeros((3,1))
-    yt[0] = y0
-    yt[1] = y1
-    yt[2] = y2
-    val = np.exp(log_prob_yt(yt, ht, Wy, by, sig_y_inv, yd))
-    return val[0][0]
-
+def y_log_pdf(h, y, Wy, by, Sigma_y_inv,T, yd):
+    mean = Wy @ h[1:] + by
+    scale = np.sqrt(1/np.diagonal(Sigma_y_inv))*np.ones((T,yd))
+    scale = scale.reshape(-1,yd,1)
+    logpdf = norm.logpdf(y, mean, scale)
+    return logpdf
 
 def h_prior_logpdf(h,z,v,fp,inv_var,T,d, alpha):
-
     one_z_h_minus = (1-z)*h[:-1]
     scale = np.sqrt(1/inv_var)*np.ones((T,d))
     scale = scale.reshape(-1,d,1)
@@ -31,7 +22,7 @@ def h_prior_logpdf(h,z,v,fp,inv_var,T,d, alpha):
     V1 = -np.ones((T,d,1))
     V2 = np.ones((T,d,1))
     V3 = 1/alpha*fp
-
+    
     V = np.zeros((T,d))
     V += v[:,:,0]*V1[:,:,0]
     V += v[:,:,1]*V2[:,:,0]
@@ -40,8 +31,16 @@ def h_prior_logpdf(h,z,v,fp,inv_var,T,d, alpha):
     V = V.reshape(T,d,1)
 
     mu = one_z_h_minus+z*V
-    logpdf = norm.logpdf(mu,scale)
+    logpdf = norm.logpdf(h[1:],mu,scale)
     return logpdf
+
+def wbar_prior_log_pdf(W, var_w, mu_prior):
+
+    scale = np.sqrt(var_w)
+    logpdf = norm.logpdf(W, mu_prior, scale)
+       
+    return np.sum(logpdf)
+
 
 def z_prior_logpmf(z,h,W,U,b,u):
     f = W @ h[:-1,:,:] + U @ u + b
@@ -66,6 +65,306 @@ def v_prior_logpmf(h,v,fp,T,d, alpha, tau):
 
     pv = pv.reshape(T,d,1)
     return np.log(pv)
+
+
+def log_joint_no_weights(T, d, yd, u, y, h, inv_var, z, v, r,
+                         Wz, Uz, bz, Wr, Ur, br,
+                         Wp, Up, bp, Wy, by, Sigma_y_inv, alpha, tau):
+    log_like = 0
+    
+    rh = np.zeros((T+1,d,1))
+    rh[:-1,:,:] = r*h[:-1,:,:]
+    fp = (Wp @ rh[:-1,:,:] + Up @ u + bp)
+
+    
+    log_like += h_prior_logpdf(h,z,v,fp,inv_var,T,d, alpha)
+    #print('h_loglike')
+    #print(np.sum(h_prior_logpdf(h,z,v,fp,inv_var,T,d, alpha)) )
+    log_like += z_prior_logpmf(z,h,Wz,Uz,bz,u)
+    #print('z loglike')
+    #print(np.sum(z_prior_logpmf(z,h,Wz,Uz,bz,u)) )
+    log_like += z_prior_logpmf(r,h,Wr,Ur,br,u)
+    #print('r loglike')
+    #print(np.sum(z_prior_logpmf(r,h,Wr,Ur,br,u)))
+    log_like += v_prior_logpmf(h,v,fp,T,d, alpha, tau)
+    #print('v loglike')
+    #print(np.sum( v_prior_logpmf(h,v,fp,T,d, alpha, tau)))
+    sum_log_like = np.sum(log_like)
+    sum_log_like += np.sum(y_log_pdf(h,y,Wy, by, Sigma_y_inv,T, yd))
+    #print('y_loglike')
+    #print(np.sum(y_log_pdf(h, y, Wy, by, Sigma_y_inv,T, yd)))
+    return sum_log_like
+
+
+
+
+def log_joint_pg_no_weights(T, d, yd, u, y, h, inv_var, z, v, r,
+                            Wz, Uz, bz, Wr, Ur, br,
+                            Wp, Up, bp, Wy, by, Sigma_y_inv, alpha, tau,
+                            omega_z, omega_r, gamma):
+    log_like = 0
+    
+    rh = np.zeros((T+1,d,1))
+    rh[:-1,:,:] = r*h[:-1,:,:]
+    fp = (Wp @ rh[:-1,:,:] + Up @ u + bp)
+
+    
+    log_like += h_prior_logpdf(h,z,v,fp,inv_var,T,d, alpha)
+    #print('h_loglike')
+    #print(np.sum(h_prior_logpdf(h,z,v,fp,inv_var,T,d, alpha)) )
+    log_like += log_prior_z_omega(z, omega_z, h, Wz, Uz, bz, u, T,d)
+    #print('z_omega  loglike')
+    #print(np.sum(log_prior_z_omega(z, omega_z, h, Wz, Uz, bz, u, T,d)) )
+    log_like += log_prior_z_omega(r, omega_r, h, Wr, Ur, br, u, T,d)
+    #print('r_omega  loglike')
+    #print(np.sum(log_prior_z_omega(r, omega_r, h, Wr, Ur, br, u, T,d)) )
+    log_like += log_prior_v_gamma_nolog_pg(v, gamma, fp, alpha, tau, T,d)
+    #print('v_gamma loglike')
+    #print(np.sum(log_prior_v_gamma_no_logpg(v, gamma, fp, alpha, tau, T,d)))
+    sum_log_like = np.sum(log_like)
+    sum_log_like += np.sum(y_log_pdf(h,y,Wy, by, Sigma_y_inv,T, yd))
+    #print('y_loglike')
+    #print(np.sum(y_log_pdf(h, y, Wy, by, Sigma_y_inv,T, yd)))
+    return sum_log_like
+
+def log_joint_pg_weights(T, d, yd, u, y, h, inv_var, z, v, r,
+                            Wz, Uz, bz, Wr, Ur, br,
+                            Wp, Up, bp, Wy, by, Sigma_y_inv, alpha, tau,
+                            omega_z, omega_r, gamma, Wz_bar, Wr_bar,
+                         Wp_bar, Wy_bar, Sigma_theta, Sigma_y_theta,
+                         Wz_mu_prior, Wr_mu_prior, Wp_mu_prior, Wy_mu_prior):
+    log_like = 0
+    
+    rh = np.zeros((T+1,d,1))
+    rh[:-1,:,:] = r*h[:-1,:,:]
+    fp = (Wp @ rh[:-1,:,:] + Up @ u + bp)
+
+    
+    log_like += h_prior_logpdf(h,z,v,fp,inv_var,T,d, alpha)
+    #print('h_loglike')
+    #print(np.sum(h_prior_logpdf(h,z,v,fp,inv_var,T,d, alpha)) )
+    log_like += log_prior_z_omega(z, omega_z, h, Wz, Uz, bz, u, T,d)
+    #print('z_omega  loglike')
+    #print(np.sum(log_prior_z_omega(z, omega_z, h, Wz, Uz, bz, u, T,d)) )
+    log_like += log_prior_z_omega(r, omega_r, h, Wr, Ur, br, u, T,d)
+    #print('r_omega  loglike')
+    #print(np.sum(log_prior_z_omega(r, omega_r, h, Wr, Ur, br, u, T,d)) )
+    log_like += log_prior_v_gamma_no_logpg(v, gamma, fp, alpha, tau, T,d)
+    #print('v_gamma loglike')
+    #print(np.sum(log_prior_v_gamma_no_logpg(v, gamma, fp, alpha, tau, T,d)))
+    sum_log_like = np.sum(log_like)
+    sum_log_like += np.sum(y_log_pdf(h,y,Wy, by, Sigma_y_inv,T, yd))
+    #print('y_loglike')
+    #print(np.sum(y_log_pdf(h, y, Wy, by, Sigma_y_inv,T, yd)))
+
+
+    sum_log_like += wbar_prior_log_pdf(Wz_bar, Sigma_theta, Wz_mu_prior)
+    #print('Wz loglike')
+    #print( wbar_prior_log_pdf(Wz_bar, Sigma_theta, Wz_mu_prior) )
+    sum_log_like += wbar_prior_log_pdf(Wr_bar, Sigma_theta, Wr_mu_prior)
+    #print('Wr loglike')
+    #print( wbar_prior_log_pdf(Wr_bar, Sigma_theta, Wr_mu_prior) )
+    sum_log_like += wbar_prior_log_pdf(Wp_bar, Sigma_theta, Wp_mu_prior)
+    #print('Wp loglike')
+    #print( wbar_prior_log_pdf(Wp_bar, Sigma_theta, Wp_mu_prior) )
+    sum_log_like += wbar_prior_log_pdf(Wy_bar, Sigma_y_theta, Wy_mu_prior)
+    #print('Wy loglike')
+    #print( wbar_prior_log_pdf(Wy_bar, Sigma_y_theta, Wy_mu_prior) )
+
+    
+    return sum_log_like
+
+
+def log_joint_pg_gammalog_no_weights(T, d, yd, u, y, h, inv_var, z, v, r,
+                            Wz, Uz, bz, Wr, Ur, br,
+                            Wp, Up, bp, Wy, by, Sigma_y_inv, alpha, tau,
+                                     omega_z, omega_r, gamma, ind_great, zeta):
+    log_like = 0
+    
+    rh = np.zeros((T+1,d,1))
+    rh[:-1,:,:] = r*h[:-1,:,:]
+    fp = (Wp @ rh[:-1,:,:] + Up @ u + bp)
+
+    
+    log_like += h_prior_logpdf(h,z,v,fp,inv_var,T,d, alpha)
+    #print('h_loglike')
+    #print(np.sum(h_prior_logpdf(h,z,v,fp,inv_var,T,d, alpha)) )
+    log_like += log_prior_z_omega(z, omega_z, h, Wz, Uz, bz, u, T,d)
+    #print('z_omega  loglike')
+    #print(np.sum(log_prior_z_omega(z, omega_z, h, Wz, Uz, bz, u, T,d)) )
+    log_like += log_prior_z_omega(r, omega_r, h, Wr, Ur, br, u, T,d)
+    #print('r_omega  loglike')
+    #print(np.sum(log_prior_z_omega(r, omega_r, h, Wr, Ur, br, u, T,d)) )
+    val, plus_sum = log_prior_v_gamma(v, gamma, fp, alpha, tau, T,d,
+                                  ind_great, zeta)
+    log_like += val
+    #print('v_gamma loglike')
+    #print(np.sum(log_prior_v_gamma_no_logpg(v, gamma, fp, alpha, tau, T,d)))
+    sum_log_like = np.sum(log_like)
+    sum_log_like += np.sum(y_log_pdf(h,y,Wy, by, Sigma_y_inv,T, yd))
+    sum_log_like += plus_sum
+    #print('y_loglike')
+    #print(np.sum(y_log_pdf(h, y, Wy, by, Sigma_y_inv,T, yd)))
+    return sum_log_like
+
+
+def log_cond_v(v, cond_v):
+    vcondv = v*cond_v
+    check = vcondv != 0
+    return np.sum(np.log(vcondv[check]))
+
+def log_cond_z(z, Ez):
+    log_z = bern.logpmf(z,Ez)
+    return np.sum(log_z)
+
+def loglike_normal(x, mean, covar):
+    return MVN.logpdf(x, mean, covar)
+
+def log_cond_Wbar(W_bar, W_mu, W_covar, d):
+    log_like = 0
+    for j in range(0,d):
+        log_like += MVN.logpdf(W_bar[j,:], W_mu[j,:,0], W_covar[j])
+    
+    return log_like
+    
+
+
+
+
+def log_prior_z_omega(z, omega, h, W, U, b, u, T,d):
+    val = np.zeros((T,d,1))
+    val += np.log(1/2)
+
+    f = W @ h[:-1] + U @ u + b
+
+    val += (z-1/2)*f
+    val += -1/2*omega*(f**2)
+
+
+    pdf_omega = PG.pgpdf(omega, 1, 0)
+    zeros = np.zeros((T,d,1))
+    check = np.isclose(pdf_omega, zeros, atol=1e-10)
+    
+    if np.sum(check)>0:
+        print('pdf_omega element = 0, returning -inf')
+        return -np.inf*np.ones((T,d,1))
+
+    logpdf = np.log(pdf_omega)
+
+    val += logpdf
+    
+    return val
+
+
+def log_prior_v_gamma_no_logpg(v, gamma, fp, alpha, tau, T,d):
+    v_cat = np.argmax(v, axis=2).reshape(T,d,1)
+    zeta1 = (-fp-alpha)/tau
+    zeta2 = (fp-alpha)/tau
+    zeta = [zeta1, zeta2]
+
+    val = np.zeros((T,d,1))
+    for k in range(0,2):
+        ind_great = v_cat >= k
+        ind_eq = v_cat == k
+
+        val += np.log(1/(2**(ind_great)))
+        val += (ind_eq-ind_great/2)*zeta[k]
+
+        gamma_k = gamma[:,:,k].reshape(T,d,1)
+        val += -1/2*(gamma_k)*(zeta[k]**2)
+    return val
+
+
+def log_prior_v_gamma(v, gamma, fp, alpha, tau, T,d, ind_great, zeta_flat):
+    v_cat = np.argmax(v, axis=2).reshape(T,d,1)
+    zeta1 = (-fp-alpha)/tau
+    zeta2 = (fp-alpha)/tau
+    zeta = [zeta1, zeta2]
+    
+    
+    val = np.zeros((T,d,1))
+    for k in range(0,2):
+        ind_greatk = v_cat >= k
+        ind_eq = v_cat == k
+
+        val += np.log(1/(2**(ind_greatk)))
+        val += (ind_eq-ind_greatk/2)*zeta[k]
+
+        gamma_k = gamma[:,:,k].reshape(T,d,1)
+        val += -1/2*(gamma_k)*(zeta[k]**2)
+
+    gamma = np.concatenate((gamma[:,:,0].ravel(order='A'),
+                                gamma[:,:,1].ravel(order='A')))
+    '''
+    ### For checking index 0
+    l = len(ind_great)
+    l = int(l/2)
+    ind_greatnew = ind_great[:l]
+    gamma = gamma[:,:,0].ravel(order='A')
+    plus_sum = np.sum(np.log(PG.pgpdf(gamma, ind_greatnew, 0)))
+    ###
+    '''
+    plus_sum = np.sum(np.log(PG.pgpdf(gamma, ind_great, 0)))
+    
+    return val, plus_sum
+
+'''
+def log_prob_v_gamma(d, vt, gamma_t, rt, h_tmin, Wp, Up, bp, ut, alpha, tau):
+
+    v_cat = np.argmax(vt, axis=1)
+
+
+    fp = Wp @ (rt*h_tmin) + Up @ ut + bp
+    zeta1 = (-fp-alpha)/tau
+    zeta2 = (fp-alpha)/tau
+    zeta = [zeta1, zeta2]
+    val = 0
+    for k in range(0,2):
+        ind_great = v_cat >=k
+        if np.sum(ind_great) < d:
+            #Need to check                                                     
+            print(-np.inf)
+            return -np.inf
+        ind_eq = v_cat == k
+        val += np.sum(np.log(1/2**ind_great))
+        coeff1 = ind_eq-ind_great/2
+        val +=  np.sum(coeff1*zeta[k][:,0])
+        val += np.sum(-1/2*gamma_t[:,k]*(zeta[k][:,0])**2)
+        
+        pdf_gamma = PG.pgpdf(gamma_t[:,k], ind_great, 0)
+
+        zeros = np.zeros((d))
+        check =  np.isclose(pdf_gamma,zeros, atol=1e-10)
+
+        if np.sum(check) > 0:
+            return -np.inf
+        logpdf = np.log(pdf_gamma)
+
+
+        val += np.sum(logpdf)
+
+    return val
+'''
+
+
+
+
+###################################################
+
+def log_prob_yt(yt, ht, Wy, by, sig_y_inv, yd):
+    val = -1/2*(yt-(Wy @ ht + by)).T @ sig_y_inv @ (yt-(Wy @ ht + by))
+    val += -np.log((2*np.pi)**(yd/2)*np.linalg.det(
+        np.linalg.inv(sig_y_inv))**(1/2))
+    return val
+
+def yt_wrapper(y0,y1,y2, ht, Wy, by, sig_y_inv, yd):
+    yt = np.zeros((3,1))
+    yt[0] = y0
+    yt[1] = y1
+    yt[2] = y2
+    val = np.exp(log_prob_yt(yt, ht, Wy, by, sig_y_inv, yd))
+    return val[0][0]
+
 
 def log_prob_ht(ht, h_tmin, zt, vt, rt, Wp, Up, bp, ut, sig_h_inv, d, alpha):
     
@@ -306,9 +605,10 @@ def full_log_joint(T, d, yd, u, y, h, sig_h_inv, z, v, r,
 def loglike_bern_t(xtd, mu_td):
     return np.sum(bern.logpmf(xtd, mu_td))
 
-
+'''
 def loglike_normal(x, mean, covar):
     return MVN.logpdf(x, mean, covar)
+'''
 
 def loglike_PG(gamma, phi, d):
     pdf_gamma = PG.pgpdf(gamma, 1, phi)
