@@ -87,8 +87,8 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         '''
         
         #Update omega pgs
-        omega_z = update.pg_update(1, h, u, Wz, Uz, bz, T, d)
-        omega_r = update.pg_update(1, h, u, Wr, Ur, br, T, d)
+        omega_z, gz = update.pg_update(1, h, u, Wz, Uz, bz, T, d)
+        omega_r, gr = update.pg_update(1, h, u, Wr, Ur, br, T, d)
 
                 
         rh[:-1,:,:] = r*h[:-1,:,:]
@@ -100,9 +100,9 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         v = np.eye(3)[v]
         v = v.reshape(T,d,3)        
 
-        '''
+        
         ###### check v updates
-        np.random.seed(12)
+        
         v = update.vectorized_cat(cond_v, items)
         v = np.eye(3)[v]
         log_cond_v1 = log_prob.log_cond_v(v,cond_v)
@@ -127,21 +127,32 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
                                                   Wp, Up, bp, Wy, by,
                                                   Sigma_y_inv, alpha, tau)
 
+        print('v')
         print('log_joint1-log_joint2')
         print(log_joint1-log_joint2)
         print('log_cond1-log_cond2')
         print(log_cond_v1-log_cond_v2)
-        sys.exit()
+        #sys.exit()
+        #Update v
+        cond_v = build.build_v_param(h,z,rh,u,Wp,Up,bp,inv_var,T,d,alpha,tau)
+        cond_v=cond_v.reshape(T*d,3)
+        items = np.arange(3)
+        v = update.vectorized_cat(cond_v, items)
+        v = np.eye(3)[v]
+        v = v.reshape(T,d,3)        
+
         #######
-        '''
+        
 
         
         
         
         #update gamma pg
-        gamma = update.gamma_update(rh, v, u, Wp, Up, bp, T, d, alpha, tau)
+        gamma, zeta, ind_great = update.gamma_update(rh, v, u,
+                                                     Wp, Up, bp, T,
+                                                     d, alpha, tau)
         
-        '''
+        
         ###### check pg_gamma update
         ##Make sure v index greater than 0, so no log like issues
         
@@ -156,8 +167,8 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
             v[shape[0], shape[1], 0] = 0
             v[shape[0], shape[1], 1] = 1
         
-        print('v')
-        print(v)
+        #print('v')
+        #print(v)
         
 
         gamma, zeta, ind_great = update.gamma_update(rh, v, u,
@@ -194,17 +205,20 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         
         log_cond2 = np.sum(np.log(PG.pgpdf(gamma, ind_great, zeta)))
 
-        
+
+
+        print('gamma')
         print('log_joint1-log_joint2')
         print(log_joint1-log_joint2)
         print('log_cond1-log_cond2')
         print(log_cond1-log_cond2)
-        sys.exit()
+        gamma = update.sample_post_gamma(ind_great.astype(np.double),zeta,T,d)
         #######
-        '''
+        
+
         '''
         ###### check pg_gamma update
-        ##check index greater 0, so no log like issues
+        ##check index  = 0
         
         v[:] = 0
         v[:,:,0] = 1
@@ -257,12 +271,21 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         print(log_joint1-log_joint2)
         print('log_cond1-log_cond2')
         print(log_cond1-log_cond2)
-        sys.exit()
+        
+
+
+        cond_v = build.build_v_param(h,z,rh,u,Wp,Up,bp,inv_var,T,d,alpha,tau)
+        cond_v=cond_v.reshape(T*d,3)
+        items = np.arange(3)
+        v = update.vectorized_cat(cond_v, items)
+        v = np.eye(3)[v]
+        v = v.reshape(T,d,3)        
+
         #######
         '''
 
 
-        '''
+        
         ###### check pg_z update
         omega_z, g = update.pg_update(1, h, u, Wz, Uz, bz, T, d)
         
@@ -285,15 +308,15 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
                             Wp, Up, bp, Wy, by, Sigma_y_inv, alpha, tau,
                             omega_z, omega_r, gamma)
 
-        
+        print('pg_z')
         print('log_joint1-log_joint2')
         print(log_joint1-log_joint2)
         print('log_cond1-log_cond2')
         print(log_cond1-log_cond2)
-        sys.exit()
+        #sys.exit()
         #######
-        '''
-        '''
+        
+        
         ###### check pg_r update
         omega_r, g = update.pg_update(1, h, u, Wr, Ur, br, T, d)
         
@@ -316,38 +339,33 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
                             Wp, Up, bp, Wy, by, Sigma_y_inv, alpha, tau,
                             omega_z, omega_r, gamma)
 
-        
+        print('pg_r')
         print('log_joint1-log_joint2')
         print(log_joint1-log_joint2)
         print('log_cond1-log_cond2')
         print(log_cond1-log_cond2)
-        sys.exit()
+        #sys.exit()
         #######
-        '''
-
         
 
-
-
+        
 
         
         #Update Zs
 
-        '''
-        fz = build.build_z_param_old(h,v,rh,inv_var.reshape(d,1), u,
-                                 Wz, Uz, bz, Wp, Up, bp, d, alpha)
-        Ez = update.update_bern(fz)
-        print(Ez)
-        '''
+        
+        #fz = build.build_z_param_old(h,v,rh,inv_var.reshape(d,1), u,
+        #                         Wz, Uz, bz, Wp, Up, bp, d, alpha)
+        #Ez = update.update_bern(fz)
+        #print(Ez)
+        
         
         Ez = build.build_z_param(h,v,rh,inv_var, u,
                                  Wz, Uz, bz, Wp, Up, bp, T, d, alpha)
         z = np.random.binomial(1,Ez, size=(T,d,1))
 
-        '''
+        
         ###### check z update
-        #seed = np.random.randint(0, 1000000)
-        np.random.seed(15)
        
         z = np.random.binomial(1,Ez, size=(T,d,1))
         log_cond1 = log_prob.log_cond_z(z,Ez)            
@@ -367,29 +385,29 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
                                                   Wz, Uz, bz, Wr, Ur, br,
                                                   Wp, Up, bp, Wy, by,
                                                   Sigma_y_inv, alpha, tau)
-
+        print('z')
         print('log_joint1-log_joint2')
         print(log_joint1-log_joint2)
         print('log_cond1-log_cond2')
         print(log_cond1-log_cond2)
-        sys.exit()
+        #sys.exit()
         #######
-        ''' 
+         
 
 
-        '''
+        
         ####
         check = np.random.randint(0,d)
-        print(check)
+        #print(check)
         ####
-        '''
+        
         #Update r's
         for j in range(0,d):
             Erd=build.build_rd_param(h,z,v,r,inv_var,u,
                                      Wp,Up,bp,Wr,Ur,br,alpha,tau,T,d,j)
             r[:,j,:] = np.random.binomial(1,Erd, size=(T,1))
 
-            '''
+            
             ###### check r updates
             if j == check:
         
@@ -417,19 +435,20 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
                                                   Wp, Up, bp, Wy, by,
                                                   Sigma_y_inv, alpha, tau)
 
+                print('r_d{}'.format(check))
                 print('log_joint1-log_joint2')
                 print(log_joint1-log_joint2)
                 print('log_cond1-log_cond2')
                 print(log_cond1-log_cond2)
-                sys.exit()
+                #sys.exit()
             #######
-            '''
+            
           
 
         
         
         #Update hs
-        
+        '''
         #Kalman sampling
         J_dyn_11,J_dyn_22,J_dyn_21,J_obs,J_ini = build.build_prec_x_kalman(
             inv_var, Sigma_y_inv, Wy,
@@ -451,7 +470,7 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         
         h = h.reshape(T,d,1)
         h = np.concatenate((h0.reshape(1,d,1), h), axis=0)
-        
+        '''
         '''                                                            
         #####                                                                  
         log_Z_obs = np.zeros(T)                                                
@@ -472,7 +491,7 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         '''
         
        
-        '''
+        
         #Full T*dXT*d matrix
         prec = build.build_prec_x(inv_var, Sigma_y_inv, Wy,
                                   Wz, omega_z, z, Wr, omega_r, r,
@@ -492,10 +511,10 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         h = np.random.multivariate_normal(mu[:,0],covar)
         h = h.reshape(T,d,1)
         h = np.concatenate((h0.reshape(1,d,1), h), axis=0)
-        '''
+        
 
             
-        '''
+        
         ###### check h update
         h = np.random.multivariate_normal(mu[:,0],covar)
         log_cond1 = log_prob.loglike_normal(h,mu[:,0] , covar)
@@ -525,13 +544,14 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
                                                      omega_z, omega_r, gamma)
         
 
+        print('full h')
         print('log_joint1-log_joint2')
         print(log_joint1-log_joint2)
         print('log_cond1-log_cond2')
         print(log_cond1-log_cond2)
-        sys.exit()
+        
         #######
-        '''
+        
 
         
 
@@ -550,12 +570,13 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
             xxT = (x[...,None]*x[:,None,:]).reshape(T,d+ud+1,d+ud+1)
 
             
-            Wz_bar, Wz, Uz, bz = update.Wbar_update(z,omega_z,x,xxT,
-                                                    1/Sigma_theta,
-                                                    Wz_mu_prior,T,d,ud)
+            Wz_bar, Wz, Uz, bz, Wz_mu, Wz_covar = update.Wbar_update(z,
+                                                          omega_z,
+                                                          x,xxT, 1/Sigma_theta,
+                                                          Wz_mu_prior,T,d,ud)
             
 
-            '''
+            
             ###### check Wz update
             #h = np.random.multivariate_normal(mu[:,0],covar)
             #log_cond1 = log_prob.loglike_normal(h,mu[:,0] , covar)
@@ -603,23 +624,24 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
                          Wz_mu_prior, Wr_mu_prior, Wp_mu_prior, Wy_mu_prior)
 
             
-        
-
+            
+            print('Wbarz')
             print('log_joint1-log_joint2')
             print(log_joint1-log_joint2)
             print('log_cond1-log_cond2')
             print(log_cond1-log_cond2)
-            sys.exit()
+            #sys.exit()
             #######
-            '''
+            
 
             
-            Wr_bar, Wr, Ur, br = update.Wbar_update(r,omega_r,x,xxT,
+            Wr_bar, Wr, Ur, br, Wr_mu, Wr_covar = update.Wbar_update(r,
+                                                    omega_r,x,xxT,
                                                     1/Sigma_theta,
                                                     Wr_mu_prior,T,d,ud)
 
 
-            '''
+            
             ###### check Wz update
 
             Wr_bar,Wr,Ur,br,W_mu, W_covar = update.Wbar_update(r,omega_r,x,xxT,
@@ -664,14 +686,14 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
 
             
         
-
+            print('Wr')
             print('log_joint1-log_joint2')
             print(log_joint1-log_joint2)
             print('log_cond1-log_cond2')
             print(log_cond1-log_cond2)
-            sys.exit()
+            #sys.exit()
             #######
-            '''
+            
 
 
 
@@ -679,17 +701,19 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
             #slight adjustment to x for tanh approx
             rx = np.concatenate((h[:-1,:,:]*r,u, np.ones((T,1,1))), axis=1)
             rxrxT = (rx[...,None]*rx[:,None,:]).reshape(T,d+ud+1,d+ud+1)
-            #Wp_bar, Wp, Up, bp = update.Wbar_p_update(h, z, gamma,v,rx, rxrxT,
-            #                                        1/Sigma_theta,
-            #                                          Wp_mu_prior,T,d,ud,
-            #                                          alpha, tau, inv_var)
+            Wp_bar, Wp, Up, bp, Wp_mu, Wp_covar = update.Wbar_p_update(h, z,
+                                                      gamma,v,rx, rxrxT,
+                                                      1/Sigma_theta,
+                                                      Wp_mu_prior,T,d,ud,
+                                                      alpha, tau, inv_var)
 
 
-
+            
             ####
             ###### check Wp update
         
 
+            '''
             print('z')
             print(z)
             print('r')
@@ -700,7 +724,7 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
             print(v)
             print('rx')
             print(rx)
-
+            '''
             
 
             
@@ -749,13 +773,14 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
             
         
 
+            print('Wp_bar')
             print('log_joint1-log_joint2')
             print(log_joint1-log_joint2)
             print('log_cond1-log_cond2')
             print(log_cond1-log_cond2)
-            sys.exit()
+            
             #######
-
+            
             
             
             
@@ -764,15 +789,70 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
             #Update y weights
             x = np.concatenate((h[1:,:,:], np.ones((T,1,1))), axis=1)
             xxT = (x[...,None]*x[:,None,:]).reshape(T,d+1,d+1)
-            Wy_bar, Wy, by = update.Wbar_y_update(x,xxT,y, Sigma_y_inv,
-                                                  1/Sigma_y_theta, Wy_mu_prior,
+            Wy_bar, Wy, by, Wy_mu, Wy_covar = update.Wbar_y_update(x,xxT,y,
+                                                Sigma_y_inv,
+                                                 1/Sigma_y_theta, Wy_mu_prior,
                                                   T,d,yd)
 
 
 
-        print(Wz_bar)
-        log_prob.wbar_prior_log_pdf(Wz_bar, 1/Sigma_theta, Wz_mu_prior)
-        sys.exit()
+            ###### check Wy update
+
+            Wy_bar, Wy, by, W_mu, W_covar = update.Wbar_y_update(x,xxT,y, Sigma_y_inv,
+                                                  1/Sigma_y_theta, Wy_mu_prior,
+                                                  T,d,yd)
+            
+            
+
+            
+
+            log_cond1 = log_prob.log_cond_Wbar(Wy_bar, W_mu, W_covar, yd)
+            
+
+            
+
+            log_joint1 =log_prob.log_joint_pg_weights(T, d, yd, u, y, h,
+                            inv_var, z, v, r,
+                            Wz, Uz, bz, Wr, Ur, br,
+                            Wp, Up, bp, Wy, by, Sigma_y_inv, alpha, tau,
+                            omega_z, omega_r, gamma, Wz_bar, Wr_bar,
+                         Wp_bar, Wy_bar, Sigma_theta, Sigma_y_theta,
+                         Wz_mu_prior, Wr_mu_prior, Wp_mu_prior, Wy_mu_prior)
+
+
+
+            Wy_bar, Wy, by, W_mu, W_covar = update.Wbar_y_update(x,xxT,y, Sigma_y_inv,
+                                                  1/Sigma_y_theta, Wy_mu_prior,
+                                                  T,d,yd)
+            
+            
+
+            log_cond2 = log_prob.log_cond_Wbar(Wy_bar, W_mu, W_covar, yd)
+            
+
+        
+            log_joint2 = log_prob.log_joint_pg_weights(T, d, yd, u, y, h,
+                            inv_var, z, v, r,
+                            Wz, Uz, bz, Wr, Ur, br,
+                            Wp, Up, bp, Wy, by, Sigma_y_inv, alpha, tau,
+                            omega_z, omega_r, gamma, Wz_bar, Wr_bar,
+                         Wp_bar, Wy_bar, Sigma_theta, Sigma_y_theta,
+                         Wz_mu_prior, Wr_mu_prior, Wp_mu_prior, Wy_mu_prior)
+
+            
+        
+            print('Wy_bar')
+            print('log_joint1-log_joint2')
+            print(log_joint1-log_joint2)
+            print('log_cond1-log_cond2')
+            print(log_cond1-log_cond2)
+            
+            #######
+            
+            
+            
+
+    
         
         if k > N_burn:
             h_samples_vec[k-N_burn-1] = h[1:].reshape(T,d)
@@ -796,10 +876,19 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         if k%log_check == 0:
 
                    
-            log_joint_vec.append( log_prob.full_log_joint_no_weights(T, d, yd,
-                                                                     u, y, h, sig_h_inv, z, v, r, gamma, omega_z, omega_r,
-                              Wz, Uz, bz, Wr, Ur, br,
-                                                                          Wp, Up, bp, Wy, by, Sigma_y_inv, alpha, tau) )
+            log_joint_vec.append( log_prob.log_joint_weights(T, d, yd, u, y,
+                                                             h, inv_var,
+                                                             z, v, r,
+                                                    Wz, Uz, bz, Wr, Ur, br,
+                                                    Wp, Up, bp, Wy, by,
+                                                    Sigma_y_inv, alpha, tau,
+                                                    Wz_bar, Wr_bar,
+                                                    Wp_bar, Wy_bar,
+                                                    Sigma_theta, Sigma_y_theta,
+                                                    Wz_mu_prior, Wr_mu_prior,
+                                                    Wp_mu_prior, Wy_mu_prior) )
+
+            print(log_joint_vec)
             sys.exit('exit main loop')
         
         ###

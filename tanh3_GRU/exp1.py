@@ -21,10 +21,10 @@ np.random.seed(seed)
 #np.random.seed(67492)
 #np.random.seed(29302)
 
-T= 6
-d= 5
-ud = 4
-yd = 3
+T= 13
+d= 12
+ud = 7
+yd = 6
 h0 = 0*np.ones(d)
 #h0 = np.random.rand(d)
 u = np.random.uniform(-1,1,size=(T,ud,1))

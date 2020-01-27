@@ -95,6 +95,51 @@ def log_joint_no_weights(T, d, yd, u, y, h, inv_var, z, v, r,
     #print(np.sum(y_log_pdf(h, y, Wy, by, Sigma_y_inv,T, yd)))
     return sum_log_like
 
+def log_joint_weights(T, d, yd, u, y, h, inv_var, z, v, r,
+                      Wz, Uz, bz, Wr, Ur, br,
+                      Wp, Up, bp, Wy, by, Sigma_y_inv, alpha, tau,
+                      Wz_bar, Wr_bar,
+                      Wp_bar, Wy_bar, Sigma_theta, Sigma_y_theta,
+                      Wz_mu_prior, Wr_mu_prior, Wp_mu_prior, Wy_mu_prior):
+    log_like = 0
+    
+    rh = np.zeros((T+1,d,1))
+    rh[:-1,:,:] = r*h[:-1,:,:]
+    fp = (Wp @ rh[:-1,:,:] + Up @ u + bp)
+
+    
+    log_like += h_prior_logpdf(h,z,v,fp,inv_var,T,d, alpha)
+    #print('h_loglike')
+    #print(np.sum(h_prior_logpdf(h,z,v,fp,inv_var,T,d, alpha)) )
+    log_like += z_prior_logpmf(z,h,Wz,Uz,bz,u)
+    #print('z loglike')
+    #print(np.sum(z_prior_logpmf(z,h,Wz,Uz,bz,u)) )
+    log_like += z_prior_logpmf(r,h,Wr,Ur,br,u)
+    #print('r loglike')
+    #print(np.sum(z_prior_logpmf(r,h,Wr,Ur,br,u)))
+    log_like += v_prior_logpmf(h,v,fp,T,d, alpha, tau)
+    #print('v loglike')
+    #print(np.sum( v_prior_logpmf(h,v,fp,T,d, alpha, tau))
+    sum_log_like = np.sum(log_like)
+    sum_log_like += np.sum(y_log_pdf(h,y,Wy, by, Sigma_y_inv,T, yd))
+    #print('y_loglike')
+    #print(np.sum(y_log_pdf(h, y, Wy, by, Sigma_y_inv,T, yd)))
+
+    sum_log_like += wbar_prior_log_pdf(Wz_bar, Sigma_theta, Wz_mu_prior)
+    #print('Wz loglike')
+    #print( wbar_prior_log_pdf(Wz_bar, Sigma_theta, Wz_mu_prior) )
+    sum_log_like += wbar_prior_log_pdf(Wr_bar, Sigma_theta, Wr_mu_prior)
+    #print('Wr loglike')
+    #print( wbar_prior_log_pdf(Wr_bar, Sigma_theta, Wr_mu_prior) )
+    sum_log_like += wbar_prior_log_pdf(Wp_bar, Sigma_theta, Wp_mu_prior)
+    #print('Wp loglike')
+    #print( wbar_prior_log_pdf(Wp_bar, Sigma_theta, Wp_mu_prior) )
+    sum_log_like += wbar_prior_log_pdf(Wy_bar, Sigma_y_theta, Wy_mu_prior)
+    #print('Wy loglike')
+    #print( wbar_prior_log_pdf(Wy_bar, Sigma_y_theta, Wy_mu_prior) )
+
+    return sum_log_like
+
 
 
 
@@ -118,7 +163,7 @@ def log_joint_pg_no_weights(T, d, yd, u, y, h, inv_var, z, v, r,
     log_like += log_prior_z_omega(r, omega_r, h, Wr, Ur, br, u, T,d)
     #print('r_omega  loglike')
     #print(np.sum(log_prior_z_omega(r, omega_r, h, Wr, Ur, br, u, T,d)) )
-    log_like += log_prior_v_gamma_nolog_pg(v, gamma, fp, alpha, tau, T,d)
+    log_like += log_prior_v_gamma_no_logpg(v, gamma, fp, alpha, tau, T,d)
     #print('v_gamma loglike')
     #print(np.sum(log_prior_v_gamma_no_logpg(v, gamma, fp, alpha, tau, T,d)))
     sum_log_like = np.sum(log_like)

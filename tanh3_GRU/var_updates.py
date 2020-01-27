@@ -38,7 +38,7 @@ def sample_post_pg(b,g,T,d):
 
 def pg_update(bpg, h, u, W, U, b, T, d):
     g = W @ h[:-1,:,:] + U @ u + b
-    return sample_post_pg(bpg,g,T,d)
+    return sample_post_pg(bpg,g,T,d), g
 
 def sample_post_gamma(b,g,T,d):
     seed =np.random.randint(0,1000000000)
@@ -70,7 +70,8 @@ def gamma_update(h, v, u, W, U, b, T, d, alpha, tau):
     indgreat = np.concatenate((indgreat1, indgreat2))
     
     zeta_flat = np.concatenate((zeta1.ravel(), zeta2.ravel()))
-    return sample_post_gamma(indgreat.astype(np.double),zeta_flat,T,d)
+    return sample_post_gamma(
+        indgreat.astype(np.double),zeta_flat,T,d ), zeta_flat, indgreat
 
 
 
@@ -195,7 +196,7 @@ def Wbar_update(z,omega,x,xxT,Sigma_inv,mu,T,d,ud):
     W_covar, W_mu = get_Wbar_params(z,omega,x,xxT,Sigma_inv,mu,T,d,ud)
     W_bar = sample_weights(W_covar, W_mu, d, ud)
     W,U,b = extract_W_weights(W_bar, d, ud)
-    return W_bar, W, U, b
+    return W_bar, W, U, b, W_mu, W_covar
 
 
 
@@ -212,7 +213,7 @@ def Wbar_y_update(x,xxT,y,Sigma_y_inv, Sigma_y_theta_inv, mu_prior,T,d,yd):
                                       Sigma_y_theta_inv, mu_prior,T,d,yd)
     W_bar = sample_weights(W_covar, W_mu, d, 0)
     W,U,b = extract_W_weights(W_bar, d, 0)
-    return W_bar, W, b
+    return W_bar, W, b, W_mu, W_covar
 
 
 def init_weights(L,U, Sigma_theta, d, ud):
