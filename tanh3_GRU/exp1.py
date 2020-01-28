@@ -1,7 +1,7 @@
 import numpy as np
 import var_updates as update
 import build_model as build
-import unit_tests_main_loop as loop
+import main_loop as loop
 import generate_GRU as gen
 import plot_dist as plot_dist
 from scipy.special import expit
@@ -14,27 +14,30 @@ import os
 import time
 
 
-seed = np.random.randint(0,100000)
-print(seed)
-np.random.seed(seed)
+#seed = np.random.randint(0,100000)
+#print(seed)
+#np.random.seed(seed)
 #np.random.seed(24356)
 #np.random.seed(67492)
-#np.random.seed(29302)
+np.random.seed(88095)
 
-T= 13
-d= 12
-ud = 7
-yd = 6
+T= 5
+d= 3
+ud = 1
+yd = 1
 h0 = 0*np.ones(d)
 #h0 = np.random.rand(d)
 u = np.random.uniform(-1,1,size=(T,ud,1))
-#var=.1
-inv_var = 1/np.random.rand(d)#np.ones(d)*1/var
+var=.3
+inv_var = np.ones(d)*1/var
 
 
-var_y = .1
+var_y = .3
 Sigma_y = var_y*np.identity(yd)
 Sigma_y_inv = 1/var_y*np.identity(yd)
+
+alpha=1.3
+tau=1
 
 #Initialize weights
 theta_var = (1/3)**2
@@ -116,7 +119,7 @@ for i in range(0,M):
                                        Wzy, Uzy, bzy.reshape(d),
                                        Wry, Ury, bry.reshape(d),
                                        Wpy, Upy, bpy.reshape(d),
-                                           Sigma_y, Wyy, byy.reshape(yd))
+                                           Sigma_y, Wyy, byy.reshape(yd), alpha, tau)
         y_vec[t,:,0] += y
     
 
@@ -145,10 +148,8 @@ z = np.random.binomial(1,Ez, size=(T,d,1))
 
 rh = np.zeros((T+1,d,1))
 #Loop parameters
-alpha=1.3
-tau=1
-N = 100
-M = 100
+N = 300000
+M = 300000
 log_check = N
 h_samples =0
 z_samples =0
@@ -163,22 +164,6 @@ N_burn = int(.4*N)
 
 T_check = 3
 d_check = 1
-
-
-#Wy = np.zeros(Wy.shape)
-#by = np.zeros(by.shape)
-
-#Wr = np.zeros(Wr.shape)
-#Ur = np.zeros(Ur.shape)
-#br = np.zeros(br.shape)
- 
-#Wz = np.zeros(Wz.shape)
-#Uz = np.zeros(Uz.shape)
-#bz = np.zeros(bz.shape)
-
-#Wp = np.zeros(Wp.shape)
-#Up = np.zeros(Up.shape)
-#bp = np.zeros(bp.shape)
 
 
 
@@ -197,94 +182,7 @@ h_samples, z_samples, r_samples, v_samples, Wz_bar_samples,Wr_bar_samples, Wp_ba
 
 
 
-'''
-#count = 0
-for k in range(0,N):
-    #Update pgs
-    omega_z = update.pg_update(1, h, u, Wz, Uz, bz, T, d)
-    omega_r = update.pg_update(1, h, u, Wr, Ur, br, T, d)
-    
-    rh[:-1,:,:] = r*h[:-1,:,:]
-    gamma = update.pg_update(1, rh, u, 2*Wp, 2*Up, 2*bp, T, d)
 
-    #Update v
-    fv = build.build_v_param(h,z,rh,u,Wp,Up,bp, inv_var, d)
-    Ev = update.update_bern(fv)
-    v  = np.random.binomial(1, Ev, size=(T,d,1))
-    
-    #Update Zs
-    fz = build.build_z_param(h,v,inv_var.reshape(d,1), Wz, Uz, u, bz, d)
-    Ez = update.update_bern(fz)
-    z = np.random.binomial(1,Ez, size=(T,d,1))
-
-    
-
-    #Update r's
-    for j in range(0,d):                            
-        frd = build.build_rd_param(h,u,v,gamma,r,Wp,Up,bp,Wr,Ur,br,j)
-        Erd = update.update_bern(frd)
-        
-        r[:,j,:] = np.random.binomial(1,Erd, size=(T,1))
-
-    
-    #Update hs
-    prec = build.build_prec_x(inv_var, Sigma_y_inv, Wy,
-                              Wz, omega_z, z, Wr, omega_r, r,
-                              Wp, gamma, v, T, d)
-    prec_muT = build.build_prec_muT(h0, u, inv_var, y, Sigma_y_inv, Wy, by,
-                                    z, omega_z, Wz, Uz, bz,
-                                    r, omega_r, Wr, Ur, br,
-                                    v, Wp, Up, bp, gamma, T, d)
-    mu, covar = update.update_normal_dim(prec,prec_muT)
-
-    h = np.random.multivariate_normal(mu[:,0],covar)
-    h = h.reshape(T,d,1)
-    h = np.concatenate((h0.reshape(1,d,1), h), axis=0)
-
-   
-
-
-    if train_weights == True:
-        
-        #Update Weights
-        x = np.concatenate((h[:-1,:,:],u, np.ones((T,1,1))), axis=1)
-        xxT = (x[...,None]*x[:,None,:]).reshape(T,d+ud+1,d+ud+1)
-
-        Wz_bar, Wz, Uz, bz = update.Wbar_update(z,omega_z,x,xxT,1/Sigma_theta,
-                                          Wz_mu_prior,T,d,ud)
-        
-        Wr_bar, Wr, Ur, br = update.Wbar_update(r,omega_r,x,xxT,1/Sigma_theta,
-                                           Wr_mu_prior,T,d,ud)
-        
-        #slight adjustment to x for tanh approx
-        rx = 2*np.concatenate((h[:-1,:,:]*r,u, np.ones((T,1,1))), axis=1)
-        rxrxT = (rx[...,None]*rx[:,None,:]).reshape(T,d+ud+1,d+ud+1)
-        Wp_bar, Wp, Up, bp = update.Wbar_update(v, gamma, rx, rxrxT,
-                                                1/Sigma_theta,
-                                                Wp_mu_prior,T,d,ud)
-        
-        
-        #Update y weights
-        x = np.concatenate((h[1:,:,:], np.ones((T,1,1))), axis=1)
-        xxT = (x[...,None]*x[:,None,:]).reshape(T,d+1,d+1)
-        Wy_bar, Wy, by = update.Wbar_y_update(x,xxT,y, Sigma_y_inv,
-                                       1/Sigma_y_theta, Wy_mu_prior,T,d,yd)
-        
-        
-        
-    if k > N_burn:
-        h_samples_vec[k-N_burn-1,:] = h[T_check,:,0]
-        h_samples += h
-        z_samples += z
-        r_samples += r
-        v_samples += v
-        Wz_bar_samples += Wz_bar
-        Wr_bar_samples += Wr_bar
-        Wp_bar_samples += Wp_bar
-        Wy_bar_samples += Wy_bar
-    print(k)
-'''
-    
 
 Eh = h_samples/(N-N_burn-1)
 Ez = z_samples/(N-N_burn-1)
@@ -335,7 +233,7 @@ print(Wy_bar_true)
 
 z_vec = np.zeros((M,T,d))
 r_vec = np.zeros((M,T,d))
-v_vec = np.zeros((M,T,d))
+v_vec = np.zeros((M,T,d,3))
 h_vec = np.zeros((M,T,d))
 
 Wz_bar_vec = np.zeros((M,d,d+ud+1))
@@ -363,12 +261,13 @@ for i in range(0,M):
                                            Wz, Uz, bz.reshape(d),
                                            Wr, Ur, br.reshape(d),
                                            Wp, Up, bp.reshape(d),
-                                           Sigma_y, Wy, by.reshape(yd))
+                                           Sigma_y, Wy,
+                                           by.reshape(yd), alpha, tau)
 
         h_vec[i,t,:] = h
         z_vec[i,t,:] = z
         r_vec[i,t,:] = r
-        v_vec[i,t,:] = v
+        v_vec[i,t,:,:] = v
     Wz_bar_vec[i,:,:] = Wz_bar
     Wr_bar_vec[i,:,:] = Wr_bar
     Wp_bar_vec[i,:,:] = Wp_bar

@@ -45,11 +45,13 @@ y_test = data[stop:].reshape(T_test,yd,1)
 
 
 ##Model Initialization
+alpha = 1.3
+tau = 1
 d=5
 h0 = 0*np.ones(d)
 var=.1
 inv_var = np.ones(d)*1/var
-var_y = .001
+var_y = .1
 Sigma_y = var_y*np.identity(yd)
 Sigma_y_inv = 1/var_y*np.identity(yd)
 
@@ -74,7 +76,7 @@ Wy_bar,Wy,_,by,Wy_mu_prior  = update.init_weights(L,U, Sigma_y_theta, d, 0)
 train_weights = True
 #Loop parameters
 N=100
-log_check = N
+log_check = 1
 N_burn = int(.9*N)
 M = N-N_burn-1  #number of test samples should be less than N-N_burn
 T_check = 100 
@@ -127,7 +129,8 @@ for j in range(0,T):
                                           Wz, Uz, bz.reshape(d),
                                           Wr, Ur, br.reshape(d),
                                           Wp, Up, bp.reshape(d),
-                                          Sigma_y, Wy, by.reshape(yd))
+                                          Sigma_y, Wy, by.reshape(yd),
+                                          alpha, tau)
     r[j,:,0] = rt
     z[j,:,0] = zt
     h[j+1,:,0] = ht
@@ -146,7 +149,7 @@ h_samples, z_samples, r_samples, v_samples, Wz_bar_samples,Wr_bar_samples, Wp_ba
                                                  Wp_mu_prior, Wy_mu_prior, Wz,
                                                  Uz, bz, Wr, Ur, br, Wp, Up,
                                                  bp, Wy, by, train_weights,
-                                                u, y, h, r, rh, z, log_check)
+                                                 u, y, h, r,rh,z,log_check,                                                                      alpha, tau)
 
 
 Eh = h_samples/(N-N_burn-1)
@@ -213,7 +216,7 @@ for j in range(0, T):
                                              Wz, Uz, bz.reshape(d),
                                              Wr, Ur, br.reshape(d),
                                              Wp, Up, bp.reshape(d),
-                                             Wy, by.reshape(yd))
+                                             Wy, by.reshape(yd), alpha, tau)
     train_y[j,:] = yt
     train_y2[j,:] = Wy @ Eh[j,:,0] + by.reshape(yd)
 
@@ -252,7 +255,8 @@ for i in range(0,M):
                                            Wz, Uz, bz.reshape(d),
                                            Wr, Ur, br.reshape(d),
                                            Wp, Up, bp.reshape(d),
-                                           Sigma_y, Wy, by.reshape(yd))
+                                           Sigma_y, Wy, by.reshape(yd),
+                                           alpha, tau)
         
         
         train_y_vec[i,j] = y
@@ -281,7 +285,7 @@ for j in range(0, T_new):
     z, r, v, h, yt = gen.stoch_GRU_step_mean(h, u, Wz, Uz, bz.reshape(d),
                                         Wr, Ur, br.reshape(d),
                                         Wp, Up, bp.reshape(d),
-                                        Wy, by.reshape(yd))
+                                             Wy, by.reshape(yd), alpha, tau)
     test_y[j,:] = yt
     u = yt
 
@@ -314,7 +318,8 @@ for i in range(0,M):
                                            Wz, Uz, bz.reshape(d),
                                            Wr, Ur, br.reshape(d),
                                            Wp, Up, bp.reshape(d),
-                                           Sigma_y, Wy, by.reshape(yd))
+                                           Sigma_y, Wy, by.reshape(yd),
+                                           alpha, tau)
         
         
         test_y_vec[i,j] = y
