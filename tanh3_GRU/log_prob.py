@@ -58,12 +58,13 @@ def v_prior_logpmf(h,v,fp,T,d, alpha, tau):
     pv2 = np.exp(np.log(expit(zeta2))+np.log(expit(-zeta1)))
     pv3 = 1-(pv1+pv2)
 
+    
     pv = np.zeros((T,d))
     pv += v[:,:,0]*pv1[:,:,0]
     pv += v[:,:,1]*pv2[:,:,0]
     pv += v[:,:,2]*pv3[:,:,0]
-
-    pv = pv.reshape(T,d,1)
+    
+    pv = pv.reshape(T,d,1)    
     return np.log(pv)
 
 

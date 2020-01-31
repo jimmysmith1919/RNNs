@@ -10,7 +10,8 @@ import os
 import sys
 import time
 
-seed = 4571#np.random.randint(0,10000)
+#seed = 4571#np.random.randint(0,10000)
+seed = 4668
 np.random.seed(seed)
 print('random_seed:',seed)
 
@@ -31,9 +32,12 @@ yd = 1
 
 stop = int(.8*end/dt)
 T = stop-1
-u = data[:T].reshape(T,ud,1)
+#u = data[:T].reshape(T,ud,1)
+u = np.zeros((T,ud,1))
 y = data[1:stop].reshape(T,yd,1)
 y_last = y[-1,:,0]
+
+
 
 T_full = len(data)-1
 y_full = data[1:].reshape(T_full, ud, 1)
@@ -46,8 +50,8 @@ y_test = data[stop:].reshape(T_test,yd,1)
 
 ##Model Initialization
 alpha = 1.3
-tau = 1
-d=5
+tau = .8
+d=10
 h0 = 0*np.ones(d)
 var=.1
 inv_var = np.ones(d)*1/var
@@ -75,16 +79,16 @@ Wy_bar,Wy,_,by,Wy_mu_prior  = update.init_weights(L,U, Sigma_y_theta, d, 0)
 
 train_weights = True
 #Loop parameters
-N=100
+N=10000
 log_check = 1
 N_burn = int(.9*N)
 M = N-N_burn-1  #number of test samples should be less than N-N_burn
 T_check = 100 
-d_check = 5
 
+'''
 ##Load Trained Tensorflow Weights
 #####
-'''
+
 wfile = 'weights/'+'GRU_d10_eps150_lr0.0001_end200_1577986258.269421.npy'
 weights = np.load(wfile, allow_pickle=True)
 
@@ -111,9 +115,9 @@ Wz_mu_prior = np.concatenate((Wz,Uz,bz), axis = 1)
 Wr_mu_prior = np.concatenate((Wr,Ur,br), axis = 1)
 Wp_mu_prior = np.concatenate((Wp,Up,bp), axis = 1)
 Wy_mu_prior = np.concatenate((Wy,by), axis = 1)
-'''
-#####
 
+#####
+'''
 
 
 
@@ -231,7 +235,6 @@ plt.plot(t[1:stop], train_y.reshape(T), label = 'mean_train')
 train_y_vec = np.zeros((M,T))
 train_y_vec2 = np.zeros((M,T))
 
-print(Wz_bar_samples_vec.shape)
 
 
 for i in range(0,M):
@@ -278,7 +281,7 @@ Wp,Up,bp = update.extract_W_weights(EWp_bar, d, ud)
 Wy,_,by = update.extract_W_weights(EWy_bar, d, 0)
 
 h = Eh[-1,:,0]
-u = y_last
+u = np.zeros(yd)#y_last
 test_y = np.zeros((T_new, yd))
 
 for j in range(0, T_new):
@@ -287,7 +290,7 @@ for j in range(0, T_new):
                                         Wp, Up, bp.reshape(d),
                                              Wy, by.reshape(yd), alpha, tau)
     test_y[j,:] = yt
-    u = yt
+    u = np.zeros(yd)#yt
 
 ran = np.arange(stop, stop+T_new, dt)
 plt.plot(ran, test_y, label = 'mean_test' )
@@ -311,7 +314,7 @@ for i in range(0,M):
     Wy,_,by = update.extract_W_weights(Wy_bar, d, 0)
     
 
-    u = y_last
+    u = np.zeros(yd)#y_last
     
     for j in range(0,T_new):
         z, r, v, h, y = gen.stoch_GRU_step(np.diag(1/inv_var), h, u,
@@ -323,7 +326,7 @@ for i in range(0,M):
         
         
         test_y_vec[i,j] = y
-        u = y
+        u = np.zeros(yd)#y
 
 
 test_y = (np.sum(test_y_vec, axis = 0))/M
@@ -336,7 +339,7 @@ test_y = (np.sum(test_y_vec, axis = 0))/M
 plt.plot(ran, test_y, label='sample_test')
 
 plt.legend()
-plt.title('N={}, M={}, Train_Weights={}, d={}, Var_h={}, Var_y={}'.format(N,M,train_weights,d,var, var_y ))
+plt.title('N={}, M={}, Train_Weights={}, d={},alpha={},tau={},\n Var_h={}, Var_y={}'.format(N,M,train_weights,d,alpha, tau, var, var_y ))
 
 
 plt.savefig(path+ '/d{}_N{}.png'.format( d, N))

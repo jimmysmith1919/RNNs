@@ -28,16 +28,16 @@ yd = 1
 h0 = 0*np.ones(d)
 #h0 = np.random.rand(d)
 u = np.random.uniform(-1,1,size=(T,ud,1))
-var=.3
+var=.1
 inv_var = np.ones(d)*1/var
 
 
-var_y = .3
+var_y = .1
 Sigma_y = var_y*np.identity(yd)
 Sigma_y_inv = 1/var_y*np.identity(yd)
 
 alpha=1.3
-tau=1
+tau=.5
 
 #Initialize weights
 theta_var = (1/3)**2

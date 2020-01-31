@@ -56,6 +56,7 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         v = np.eye(3)[v]
         v = v.reshape(T,d,3)                
         
+
         #update gamma pg
         gamma, _, _ = update.gamma_update(rh, v, u,
                                           Wp, Up, bp, T,
@@ -141,7 +142,7 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         '''
         
 
-        
+        '''
         ############
         ##Sample Y's, FOR GEWECKE TESTING ONLY
         Ey = Wy @ h[1:] + by                                                   
@@ -149,7 +150,7 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         Sig_y_in = np.ones((T,yd,1))*Sig_y_diag                              
         y= np.random.normal(Ey, np.sqrt(Sig_y_in))
         ################
-        
+        '''
 
         if train_weights == True:
         
