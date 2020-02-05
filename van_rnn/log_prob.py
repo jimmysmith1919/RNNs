@@ -92,11 +92,11 @@ def log_joint_weights(T, d, yd, u, y, h, inv_var, v,
     log_like += h_prior_logpdf(h,v,fp,inv_var,T,d, alpha)
     log_like += v_prior_logpmf(h,v,fp,T,d, alpha, tau)
     sum_log_like = np.sum(log_like)
-    sum_log_like += np.sum(y_log_pdf(h,y,Wy, by, Sigma_y_inv,T, yd))
+    #sum_log_like += np.sum(y_log_pdf(h,y,Wy, by, Sigma_y_inv,T, yd))
     
     sum_log_like += wbar_prior_log_pdf(Wp_bar, Sigma_theta, Wp_mu_prior)
     
-    sum_log_like += wbar_prior_log_pdf(Wy_bar, Sigma_y_theta, Wy_mu_prior)
+    #sum_log_like += wbar_prior_log_pdf(Wy_bar, Sigma_y_theta, Wy_mu_prior)
 
     return sum_log_like
 

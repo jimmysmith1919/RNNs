@@ -24,6 +24,14 @@ def vectorized_cat(prob_matrix, items):
     k = (s < r).sum(axis=0)
     return items[k]
 
+def vectorized_vector_cat(prob_matrix, items, M):
+    prob_matrix=np.transpose(prob_matrix, axes=(0,2,1))
+    s = prob_matrix.cumsum(axis=1)
+    r = np.random.rand(M,1,prob_matrix.shape[2])
+    k = (s < r).sum(axis=1)
+
+    return items[k]
+
 
 
 def sample_post_pg(b,g,T,d):

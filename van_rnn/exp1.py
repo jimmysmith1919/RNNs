@@ -19,7 +19,8 @@ import time
 #np.random.seed(seed)
 #np.random.seed(24356)
 #np.random.seed(67492)
-np.random.seed(88095)
+#np.random.seed(88095)
+np.random.seed(45771)
 
 T= 5
 d= 3
@@ -37,7 +38,7 @@ Sigma_y = var_y*np.identity(yd)
 Sigma_y_inv = 1/var_y*np.identity(yd)
 
 alpha=1.3
-tau=.5
+tau=.8
 
 #Initialize weights
 theta_var = (1/3)**2
@@ -49,36 +50,10 @@ Sigma_y_theta = np.ones((yd,d+1))*theta_y_var
 L=-.9
 U= .9
 
-Wz_bar,Wz,Uz,bz,Wz_mu_prior = update.init_weights(L,U, Sigma_theta, d, ud)
-Wr_bar,Wr,Ur,br,Wr_mu_prior  = update.init_weights(L,U, Sigma_theta, d, ud)
-Wp_bar,Wp,Up,bp,Wp_mu_prior  = update.init_weights(L,U, Sigma_theta, d, ud)
 
+Wp_bar,Wp,Up,bp,Wp_mu_prior  = update.init_weights(L,U, Sigma_theta, d, ud)
 Wy_bar,Wy,_,by,Wy_mu_prior  = update.init_weights(L,U, Sigma_y_theta, d, 0)
 
-
-#Wz, Uz, bz = update.extract_W_weights(Wz_mu_prior, d, ud)
-#Wr, Ur, br = update.extract_W_weights(Wr_mu_prior, d, ud)
-#Wp, Up, bp = update.extract_W_weights(Wp_mu_prior, d, ud)
-#Wy, _, by = update.extract_W_weights(Wy_mu_prior, d, 0)
-
-
-'''
-##TESTING###
-Wz = np.random.uniform(3,4, size=(d,d))
-Uz = np.random.uniform(3,4, size=(d,ud))
-bz = np.random.uniform(3,4, size = (d,1))
-
-Wr = np.random.uniform(3,4, size=(d,d))
-Ur = np.random.uniform(3,4, size=(d,ud))
-br = np.random.uniform(3,4, size = (d,1))
-
-Wp = np.random.uniform(3,4, size=(d,d))
-Up = np.random.uniform(3,4, size=(d,ud))
-bp = np.random.uniform(3,4, size = (d,1))
-
-Wy = np.random.uniform(3,4, size=(yd,d))
-by = np.random.uniform(3,4, size = (yd,1))
-'''
 
 train_weights = True
 
@@ -91,14 +66,12 @@ y_vec = np.zeros((T,yd,1))
 L=.3
 U=.4
 
-Wz_bar_true = Wz_mu_prior #np.random.uniform(L,U,size = (d,d+ud+1))
-Wr_bar_true = Wr_mu_prior  #np.random.uniform(L,U,size = (d,d+ud+1))
+
 Wp_bar_true = Wp_mu_prior #np.random.uniform(L,U,size = (d,d+ud+1))
 Wy_bar_true = Wy_mu_prior #np.random.uniform(L,U,size = (d,yd+1))
 
 
-Wzy, Uzy, bzy = update.extract_W_weights(Wz_bar_true, d, ud)
-Wry, Ury, bry = update.extract_W_weights(Wr_bar_true, d, ud)
+
 Wpy, Upy, bpy = update.extract_W_weights(Wp_bar_true, d, ud)
 Wyy, _, byy = update.extract_W_weights(Wy_bar_true, d, 0)
 #Wyy, _, byy = update.extract_W_weights(Wy_mu_prior, d, 0)
@@ -115,11 +88,10 @@ Wyy, _, byy = update.extract_W_weights(Wy_mu_prior, d, 0)
 for i in range(0,M):
     h = h0
     for t in range(0,T):
-        z, r, v, h, y = gen.stoch_GRU_step(np.diag(1/inv_var), h, u[t,:,0],
-                                       Wzy, Uzy, bzy.reshape(d),
-                                       Wry, Ury, bry.reshape(d),
-                                       Wpy, Upy, bpy.reshape(d),
-                                           Sigma_y, Wyy, byy.reshape(yd), alpha, tau)
+        v, h, y = gen.stoch_RNN_step(np.diag(1/inv_var), h, u[t,:,0],
+                                      Wpy, Upy, bpy.reshape(d),
+                                      Sigma_y, Wyy, byy.reshape(yd),
+                                      alpha, tau)
         y_vec[t,:,0] += y
     
 
@@ -133,50 +105,41 @@ y = y_vec/M
 #Initialize h
 h = np.zeros((T+1,d,1))
 h[0,:,0] = h0
-Er = np.zeros((T,d,1))
-Ez = np.zeros((T,d,1))
 for i in range(1,T+1):
     #TESTING
     h[i,:,0] = np.random.multivariate_normal(h[i-1,:,0], np.diag(1/inv_var) )
     #np.random.uniform(-.5,.5,3 
-    Er[i-1,:,:] = expit(Wr @ h[i-1,:,:] + Ur @ u[i-1,:,:] + br)
-    Ez[i-1,:,:] = expit(Wz @ h[i-1,:,:] + Uz @ u[i-1,:,:] + bz)
+    
 
-#Initialize r 
-r = np.random.binomial(1,Er, size=(T,d,1))
-z = np.random.binomial(1,Ez, size=(T,d,1))
 
-rh = np.zeros((T+1,d,1))
 #Loop parameters
-N = 300000
-M = 300000
+N = 1000000
+M = 1000000
 log_check = N
 h_samples =0
-z_samples =0
-r_samples =0
 v_samples =0
-Wz_bar_samples = 0
-Wr_bar_samples = 0
 Wp_bar_samples = 0
 Wy_bar_samples = 0
 
 N_burn = int(.4*N)
 
-T_check = 3
+T_check = 0
 d_check = 1
 
 
 
-h_samples, z_samples, r_samples, v_samples, Wz_bar_samples,Wr_bar_samples, Wp_bar_samples, Wy_bar_samples, h_samples_vec, Wz_bar_samples_vec, Wr_bar_samples_vec, Wp_bar_samples_vec, Wy_bar_samples_vec, h_plot_samples, log_joint_vec = loop.gibbs_loop(N, N_burn, T, d,
+
+
+
+h_samples, v_samples, Wp_bar_samples, Wy_bar_samples, h_samples_vec,  Wp_bar_samples_vec, Wy_bar_samples_vec, h_plot_samples, log_joint_vec = loop.gibbs_loop(N, N_burn, T, d,
                                                  T_check, ud, yd, h0,
                                                  inv_var, Sigma_y_inv,
                                                  Sigma_theta, Sigma_y_theta,
                                                  Sigma_y,
-                                                 Wz_mu_prior, Wr_mu_prior,
-                                                 Wp_mu_prior, Wy_mu_prior, Wz,
-                                                 Uz, bz, Wr, Ur, br, Wp, Up,
+                                                 Wp_mu_prior, Wy_mu_prior, 
+                                                 Wp, Up,
                                                  bp, Wy, by, train_weights,
-                                                                                                                                                                                                                                                          u, y, h, r, rh, z, log_check, alpha, tau)
+                                                                                                                                                                                                                                                          u, y, h, log_check, alpha, tau)
 
 
 
@@ -185,69 +148,36 @@ h_samples, z_samples, r_samples, v_samples, Wz_bar_samples,Wr_bar_samples, Wp_ba
 
 
 Eh = h_samples/(N-N_burn-1)
-Ez = z_samples/(N-N_burn-1)
-Er = r_samples/(N-N_burn-1)
 Ev = v_samples/(N-N_burn-1)
-EWz_bar = Wz_bar_samples/(N-N_burn-1)
-EWr_bar = Wr_bar_samples/(N-N_burn-1)
 EWp_bar = Wp_bar_samples/(N-N_burn-1)
 EWy_bar = Wy_bar_samples/(N-N_burn-1)
 print('Eh')
 print(Eh)
-print('Ez')
-print(Ez)
-print('Er')
-print(Er)
 print('Ev')
 print(Ev)
-print('EWz_bar')
-print(np.round(EWz_bar,4))
-print('EWr_bar')
-print(np.round(EWr_bar,4))
 print('EWp_bar')
 print(np.round(EWp_bar,4))
 print('EWy_bar')
 print(np.round(EWy_bar,4))
 
-
-print('Wz_bar_prior_mean')
-print(np.round(Wz_mu_prior,4))
-print('Wr_bar_prior_mean')
-print(np.round(Wr_mu_prior,4))
 print('Wp_bar_prior_mean')
 print(np.round(Wp_mu_prior,4))
 print('Wy_mu_prior_mean')
 print(Wy_mu_prior)
 
-print('Wz_bar_true')
-print(Wz_bar_true)
-print('Wr_bar_true')
-print(Wr_bar_true)
 print('Wp_bar_true')
 print(Wp_bar_true)
 print('Wy_bar_true')
 print(Wy_bar_true)
 
-
-
-
-z_vec = np.zeros((M,T,d))
-r_vec = np.zeros((M,T,d))
 v_vec = np.zeros((M,T,d,3))
 h_vec = np.zeros((M,T,d))
 
-Wz_bar_vec = np.zeros((M,d,d+ud+1))
-Wr_bar_vec = np.zeros((M,d,d+ud+1))
 Wp_bar_vec = np.zeros((M,d,d+ud+1))
 Wy_bar_vec = np.zeros((M,yd,d+1))
 
 for i in range(0,M):
     h = h0
-    Wz_bar = np.random.normal(Wz_mu_prior, np.sqrt(Sigma_theta))
-    Wz,Uz,bz = update.extract_W_weights(Wz_bar, d, ud)
-
-    Wr_bar = np.random.normal(Wr_mu_prior, np.sqrt(Sigma_theta))
-    Wr,Ur,br = update.extract_W_weights(Wr_bar, d, ud)
 
     Wp_bar = np.random.normal(Wp_mu_prior, np.sqrt(Sigma_theta))
     Wp,Up,bp = update.extract_W_weights(Wp_bar, d, ud)
@@ -257,28 +187,18 @@ for i in range(0,M):
 
     #for t in range(0,T_check):
     for t in range(0,T):
-        z, r, v, h, y = gen.stoch_GRU_step(np.diag(1/inv_var), h, u[t,:,0],
-                                           Wz, Uz, bz.reshape(d),
-                                           Wr, Ur, br.reshape(d),
+        v, h, y = gen.stoch_RNN_step(np.diag(1/inv_var), h, u[t,:,0],
                                            Wp, Up, bp.reshape(d),
                                            Sigma_y, Wy,
                                            by.reshape(yd), alpha, tau)
 
         h_vec[i,t,:] = h
-        z_vec[i,t,:] = z
-        r_vec[i,t,:] = r
         v_vec[i,t,:,:] = v
-    Wz_bar_vec[i,:,:] = Wz_bar
-    Wr_bar_vec[i,:,:] = Wr_bar
     Wp_bar_vec[i,:,:] = Wp_bar
     Wy_bar_vec[i,:,:] = Wy_bar
     
 
 print('prior')
-print('Ez')
-print(np.sum(z_vec,axis=0)/M)
-print('Er')
-print(np.sum(r_vec,axis=0)/M)
 print('Ev')
 print(np.sum(v_vec,axis=0)/M)
         
