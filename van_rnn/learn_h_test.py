@@ -10,30 +10,31 @@ import os
 import sys
 import time
 
-#seed = 4571#np.random.randint(0,10000)
-seed = 4667
+seed = np.random.randint(0,10000)
+#seed = 4667
 #seed = 4668
+#seed = 4777
 np.random.seed(seed)
 print('random_seed:',seed)
 
 
 
-train_weights = True
+train_weights = False
 #Loop parameters
-N=1000000
-MM=1000000
+N=10000
+MM=1
 log_check = 1
-N_burn = int(.8*N)
+N_burn = int(.99*N)
 M = N-N_burn-1  #number of test samples should be less than N-N_burn
 T_check = 0 
 
 
 #Generate data 
-T=1
+T=10
 d=1
 ud = 1
 yd = 1
-alpha = 1.3
+alpha = 2.3
 tau_g = 1
 tau = tau_g
 h0 = 0*np.ones(d)
@@ -55,8 +56,11 @@ theta_y_var = .01#(1/3**2)
 Sigma_y_theta = np.ones((yd,d+1))*theta_y_var
 
 
-L=-.9
-U= -.4
+#L=-.9
+#U= -.4
+
+L=-.5
+U=.5
 
 #L = .3
 #U = .9
@@ -82,37 +86,64 @@ WyT, _, byT = update.extract_W_weights(WyT_bar, d, 0)
 L=-.9
 U= .9
 
-Wp_bar,Wp,Up,bp,Wp_mu_prior  = update.init_weights(L,U, Sigma_theta,
-                                                        d, ud)
+#Wp_bar,Wp,Up,bp,Wp_mu_prior  = update.init_weights(L,U, Sigma_theta,
+#                                                        d, ud)
 Wy_bar,Wy,_,by,Wy_mu_prior  = update.init_weights(L,U, Sigma_y_theta,
                                                       d, 0)
-'''
+
 Wp_bar = WpT_bar
 Wp = WpT
 Up = UpT
 bp = bpT
 Wp_mu_prior = WpT_mu_prior
-'''
+
 
 #Generate data
-#v = np.zeros((MM,T,d,3))
+V = np.zeros((MM,T,d,1))
+v = np.zeros((MM,T,d,3))
 h = np.zeros((MM,T+1,d,1))
 h[:,0,:,0] = h0
 y = np.zeros((MM,T,yd,1))
 
 ht = h[:,0]
 for j in range(0,T):
-     vt,ht,yt =  gen.stoch_RNN_step_vectorized(MM,d,1/inv_var,ht,
+     Vt,vt,ht,yt =  gen.stoch_RNN_step_vectorized(MM,d,1/inv_var,ht,
                                              u[j], WpT_bar,
                                              Sigma_y, WyT, byT,
-                                               alpha, tau_g)
-     #v[:,j,:,:]  = vt
+                                             alpha, tau_g)
+     V[:,j,:,:]= Vt
+     v[:,j,:,:]  = vt
      h[:,j+1,:,:]= ht
      #y[:,j,:,:] = yt 
 
-#v = np.sum(v, axis=0)/MM
+V_true = np.sum(V, axis=0)/MM
+v_true = np.sum(v, axis=0)/MM
 h = np.sum(h, axis=0)/MM
 y = np.sum(y, axis =0)/MM
+
+
+
+'''
+print(v_true)
+labels = []
+for el in range(1,T+1):
+     labels.append(str(el))
+cat1 = v_true[:,:,0].reshape(T)
+cat2 = v_true[:,:,1].reshape(T)
+cat3 = v_true[:,:,2].reshape(T)
+L = np.arange(1,T+1)
+width=.35
+
+fig, ax = plt.subplots()
+rects1 = ax.bar(L-width/2, cat1, width, fill=False, label='cat1')
+rects2 = ax.bar(L-width/6, cat2, width, fill=False, label='cat2')
+ax.set_xticks(L)
+ax.set_xticklabels(labels)
+plt.show()
+'''
+
+
+
 
 
 
@@ -146,6 +177,8 @@ print('Eh')
 print(Eh)
 print('Ev')
 print(Ev)
+print('true_v')
+print(v_true)
 print('EWp_bar')
 print(np.round(EWp_bar,4))
 print('EWy_bar')
@@ -180,7 +213,7 @@ plt.close()
 ###
 
 ran = np.arange(0,T+1)
-plt.plot(ran,h.reshape(T+1), label = 'True')
+#plt.plot(ran,h.reshape(T+1), label = 'True')
 
 '''
 #Training Predictions
@@ -214,7 +247,7 @@ h_train = np.zeros((M,T+1,d,1))
 h_train[:,0,:,0] = h0
 h2_train = np.zeros((M,T+1,d,1))
 h2_train[:,0,:,0] = h0
-#V2_train = np.zeros((M,T,d,1))
+V2_train = np.zeros((M,T,d,1))
 
 
 ht = h_train[:,0]
@@ -234,7 +267,7 @@ for j in range(0,T):
      x = np.concatenate((h_full[:,j], newu, ones), axis=1)
      fp = 2*(Wp_bar_samples_vec @ x)
      #fp = 2*(Wp_bar @ x)
-     vt,ht,yt =  gen.stoch_RNN_step_vectorized(M,d,1/inv_var,ht,
+     _,vt,ht,yt =  gen.stoch_RNN_step_vectorized(M,d,1/inv_var,ht,
                                              u[j], Wp_bar,
                                              Sigma_y, Wy, by,
                                              alpha, tau)
@@ -243,13 +276,73 @@ for j in range(0,T):
      h_train[:,j+1,:,:]= ht
      V = gen.big_V(M,v_samples_vec[:,j], alpha, tau, fp, d)     
      V = V.reshape(V.shape[0], V.shape[1],1)
-     #V2_train[:,j,:,:] = V
+     V2_train[:,j,:,:] = V
 
      h2_train[:,j+1,:,:] = 2*V-1
      
 h_train = np.sum(h_train, axis=0)/M
 h2_train = np.sum(h2_train, axis=0)/M
 #V2_train = np.sum(V2_train, axis=0)/M
+
+
+
+#Plot V
+plt.plot(ran[1:], V_true.reshape(T))
+for i in range(0,M):
+     eps = np.random.uniform(-.37,.37)
+     eps2 = np.random.uniform(-.13,.13)
+     plt.plot(ran[1:]+eps,V2_train[i].reshape(T)+eps2, 'x')
+plt.xlabel('T')
+plt.ylabel('V')
+plt.show()
+
+print(seed)
+
+
+
+
+
+labels = []
+for el in range(1,T+1):
+     labels.append(str(el))
+
+
+cat1 = np.sum(v_samples_vec[:,:,:,0], axis=0).reshape(T)/M
+cat2 = np.sum(v_samples_vec[:,:,:,1], axis=0).reshape(T)/M
+cat3 = np.sum(v_samples_vec[:,:,:,2], axis=0).reshape(T)/M
+
+print(np.sum(v_samples_vec, axis=0)/M)
+
+L = np.arange(1,T+1)
+width=.2
+
+fig, ax = plt.subplots()
+rects1 = ax.bar(L-width, cat1, width,  label='cat1')
+rects2 = ax.bar(L, cat2, width,  label='cat2')
+rects3 = ax.bar(L+width, cat3, width,  label='cat3')
+
+
+ax.set_xticks(L)
+ax.set_xticklabels(labels)
+
+plt.xlabel('T')
+
+
+cat1 = v_true[:,:,0].reshape(T)
+cat2 = v_true[:,:,1].reshape(T)
+cat3 = v_true[:,:,2].reshape(T)
+
+rects4 = ax.bar(L-width, cat1, width, fill=False)
+rects5 = ax.bar(L, cat2, width,  fill=False)
+rects6 = ax.bar(L+width, cat3, width, fill=False, label='Obs_sample')
+
+ax.legend()
+plt.show()
+
+
+
+
+sys.exit()
 
 plt.plot(ran, h_train.reshape(T+1), label='sample_train')
 plt.plot(ran, h2_train.reshape(T+1), label='2*Vi(Wp_i)-1')

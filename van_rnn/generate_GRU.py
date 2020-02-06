@@ -131,15 +131,15 @@ def stoch_RNN_step_vectorized(M,d,Sigma,h_0, u, Wp_bar,
     scale = np.sqrt(Sigma)*np.ones(Eh.shape)
     Eh = Eh.reshape(M,d,1)
     scale = scale.reshape(M,d,1)
-    h = norm.rvs(loc=Eh, scale=scale)
-    
+    h = ( norm.rvs(loc=Eh, scale=scale) ).reshape(M,d,1)
+
     Ey = Wy @ h + by
 
     yd = Ey.shape[1]
     scale = np.sqrt(np.diag(Sigma_y)).reshape(1,yd,1)*np.ones(Ey.shape)
     y= norm.rvs(loc=Ey, scale=scale)
         
-    return  v, h, y
+    return  V, v, h, y
 
 
 
