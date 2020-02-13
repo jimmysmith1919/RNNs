@@ -14,11 +14,10 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
                Sigma_theta,
                Sigma_y_theta,Sigma_y, Wp_mu_prior,
                Wy_mu_prior, Wp, Up, bp, Wy, by,
-               train_weights, u, y, h, log_check, alpha, tau):
+               train_weights, u, y, h, log_check, alpha, tau,v):
     ###
     h_plot_samples = np.zeros((N,d))
     log_joint_vec = []
-    Wp_bar_plot = np.zeros((N,d,d+ud+1))
     ###
     h_samples_vec = np.zeros((N-N_burn-1,T,d))
     Wp_bar_samples_vec = np.zeros((N-N_burn-1,d,d+ud+1))
@@ -36,7 +35,7 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
     
     for k in range(0,N):
                 
-        
+        '''
         #Update v
         cond_v = build.build_v_param(h,u,Wp,Up,bp,inv_var,T,d,alpha,tau)
         cond_v=cond_v.reshape(T*d,3)
@@ -44,7 +43,7 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
         v = update.vectorized_cat(cond_v, items)
         v = np.eye(3)[v]
         v = v.reshape(T,d,3)        
-        
+        '''
         
         #update gamma pg
         gamma, zeta, ind_great = update.gamma_update(h, v, u,
@@ -142,8 +141,7 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
                                                  1/Sigma_y_theta, Wy_mu_prior,
                                                   T,d,yd)    
             '''
-
-        Wp_bar_plot[k] = Wp_bar
+        
         if k > N_burn:
             h_samples_vec[k-N_burn-1] = h[1:].reshape(T,d)
             h_samples += h
@@ -172,6 +170,6 @@ def gibbs_loop(N, N_burn, T, d,T_check, ud, yd, h0, inv_var, Sigma_y_inv,
 
    
         
-    return h_samples, v_samples, Wp_bar_samples, Wy_bar_samples, h_samples_vec,v_samples_vec,  Wp_bar_samples_vec, Wy_bar_samples_vec, h_plot_samples, log_joint_vec, Wp_bar_plot 
+    return h_samples, v_samples, Wp_bar_samples, Wy_bar_samples, h_samples_vec,v_samples_vec,  Wp_bar_samples_vec, Wy_bar_samples_vec, h_plot_samples, log_joint_vec 
     
 

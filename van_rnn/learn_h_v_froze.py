@@ -1,7 +1,7 @@
 import numpy as np
 import var_updates as update
 import build_model as build
-import main_loop as loop
+import v_froze_main_loop as loop
 import generate_GRU as gen
 import plot_dist as plot_dist
 from scipy.special import expit
@@ -14,16 +14,16 @@ import log_prob
 from scipy.stats import norm
 
 
-seed = np.random.randint(0,10000)
+#seed = np.random.randint(0,10000)
 #seed = 4667
-#seed = 4506
-#seed = 4450
-#seed = 6918
-#seed = 1206
-#seed = 8072
-#seed = 4946
-#seed = 589
-#seed = 4020
+#seed = 9882
+#seed = 6467
+#seed = 2903
+#seed = 5106 
+#seed = 2943
+#seed = 7750
+#seed = 2709
+seed = 4050
 np.random.seed(seed)
 print('random_seed:',seed)
 
@@ -33,15 +33,14 @@ train_weights = True
 #Loop parameters
 N=10000
 MM=1
-NN=1000000
 log_check = 1
 N_burn = int(.9*N)
 M = N-N_burn-1  #number of test samples should be less than N-N_burn
-T_check = 1
+T_check = 0 
 
 
-#Generate data
-T=10
+#Generate data 
+T=3
 d=1
 ud = 1
 yd = 1
@@ -51,7 +50,7 @@ tau = tau_g
 h0 = 0*np.ones(d)
 u = np.zeros((T,ud,1))
 
-var= .1
+var= .3
 inv_var = np.ones(d)*1/var
 var_y = .1
 Sigma_y = np.diag(np.random.uniform(size=yd))#var_y*np.identity(yd)
@@ -67,11 +66,11 @@ theta_y_var = .1
 Sigma_y_theta = np.ones((yd,d+1))*theta_y_var
 
 
-L=-.9
-U= -.4
+#L=-.9
+#U= -.7
 
-#L=-.5
-#U=.5
+L=-.5
+U=.5
 
 #L = .3
 #U = .9
@@ -88,7 +87,33 @@ WpT_bar,WpT,UpT,bpT,WpT_mu_prior  = update.init_weights(L,U, Sigma_theta,
 WyT_bar,WyT,_,byT,WyT_mu_prior  = update.init_weights(L,U, Sigma_y_theta,
                                                       d, 0)
 
-#Generate observed data
+
+##
+
+
+theta_var = .1
+Sigma_theta = np.ones((d,d+ud+1))*theta_var
+##
+
+#Initialized Weights
+w_mu_prior = 0
+Wp_mu_prior = w_mu_prior*np.ones((d,d+ud+1))
+Wp_bar,Wp,Up,bp,_  = update.init_weights(L,U, Sigma_theta,
+                                                        d, ud, Wp_mu_prior)
+
+Wy_bar,Wy,_,by,Wy_mu_prior  = update.init_weights(L,U, Sigma_y_theta,
+                                                      d, 0)
+
+
+'''
+Wp_bar = WpT_bar
+Wp = WpT
+Up = UpT
+bp = bpT
+Wp_mu_prior = WpT_mu_prior
+'''
+
+#Generate data
 V = np.zeros((MM,T,d,1))
 v = np.zeros((MM,T,d,3))
 h = np.zeros((MM,T+1,d,1))
@@ -112,68 +137,11 @@ h = np.sum(h, axis=0)/MM
 y = np.sum(y, axis =0)/MM
 
 
-#Generate averaged trajectories
-h_avg = np.zeros((NN,T+1,d,1))
-h_avg[:,0,:,0] = h0
-y_avg = np.zeros((NN,T,yd,1))
-
-ht = h_avg[:,0]
-for j in range(0,T):
-     Wpp_bar,_,_,_,_  = update.init_weights(L,U, Sigma_theta,
-                                                             d, ud,
-                                                             WpT_mu_prior)
-     _,_,ht,yt =  gen.stoch_RNN_step_vectorized(NN,d,1/inv_var,ht,
-                                             u[j], Wpp_bar,
-                                             Sigma_y, WyT, byT,
-                                             alpha, tau_g)
-     
-     h_avg[:,j+1,:,:]= ht
-     #y_avg[:,j,:,:] = yt 
-
-std_h_avg = np.std(h_avg, axis=0)
-h_avg = np.sum(h_avg, axis=0)/NN
-#y_avg = np.sum(y, axis =0)/NN
 
 
 
 
-##
-theta_var = .1
-Sigma_theta = np.ones((d,d+ud+1))*theta_var
 
-var= .1
-inv_var = np.ones(d)*1/var
-##
-
-#Initialized Weights
-w_mu_prior = 0.4
-Wp_mu_prior = w_mu_prior*np.ones((d,d+ud+1))
-Wp_bar,Wp,Up,bp,_  = update.init_weights(L,U, Sigma_theta,
-                                                        d, ud, Wp_mu_prior)
-
-Wy_bar,Wy,_,by,Wy_mu_prior  = update.init_weights(L,U, Sigma_y_theta,
-                                                      d, 0)
-
-
-'''
-Wp_bar = WpT_bar
-Wp = WpT
-Up = UpT
-bp = bpT
-Wp_mu_prior = WpT_mu_prior
-'''
-
-'''
-MMM=10000
-post_v=0
-for i in range(0,MMM):
-     Wp_bar,Wp,Up,bp,_  = update.init_weights(L,U, Sigma_theta,
-                                                        d, ud, Wp_mu_prior)
-
-     post_v += build.build_v_param(h,u,Wp,Up,bp,inv_var,T,d,alpha,tau_g)
-
-post_v = post_v/MMM
-'''
 
 
 ####For h observed
@@ -183,7 +151,7 @@ Wy = np.zeros(WyT.shape)
 by = np.zeros(byT.shape)
 ####
 
-h_samples, v_samples,  Wp_bar_samples, Wy_bar_samples, h_samples_vec,v_samples_vec, Wp_bar_samples_vec, Wy_bar_samples_vec, h_plot_samples, log_joint_vec, Wp_bar_plot = loop.gibbs_loop(N, N_burn, T, d,
+h_samples, v_samples,  Wp_bar_samples, Wy_bar_samples, h_samples_vec,v_samples_vec, Wp_bar_samples_vec, Wy_bar_samples_vec, h_plot_samples, log_joint_vec = loop.gibbs_loop(N, N_burn, T, d,
                                                  T_check, ud, yd, h0,
                                                  inv_var, Sigma_y_inv,
                                                  Sigma_theta, Sigma_y_theta,
@@ -191,7 +159,7 @@ h_samples, v_samples,  Wp_bar_samples, Wy_bar_samples, h_samples_vec,v_samples_v
                                                  Wp_mu_prior, Wy_mu_prior,
                                                  Wp, Up,
                                                  bp, Wy, by, train_weights,
-                                                 u, y, h,log_check,                                                                      alpha, tau)
+                                                                                                                                                                            u, y, h,log_check,                                                                      alpha, tau,v_true)
 
 
 Eh = h_samples/(N-N_burn-1)
@@ -236,26 +204,6 @@ for j in range(0,d):
 plt.plot(log_joint_vec)
 plt.savefig(path+'/log_joint')
 plt.close()
-
-
-plt.plot(Wp_bar_plot[:,:,0], label='Wp')
-plt.xlabel('iterations')
-plt.title('Evolution of Weights')
-plt.legend()
-plt.savefig(path +'/Wp')
-plt.close()
-plt.plot(Wp_bar_plot[:,:,1], label='Up')
-plt.xlabel('iterations')
-plt.title('Evolution of Weights')
-plt.legend()
-plt.savefig(path +'/Up')
-plt.close()
-plt.plot(Wp_bar_plot[:,:,2], label='bp')
-plt.legend()
-plt.xlabel('iterations')
-plt.title('Evolution of Weights')
-plt.savefig(path +'/weights_evol')
-plt.close()
 ###
 
 ran = np.arange(0,T+1)
@@ -293,12 +241,17 @@ h_train = np.zeros((M,T+1,d,1))
 h_train[:,0,:,0] = h0
 h2_train = np.zeros((M,T+1,d,1))
 h2_train[:,0,:,0] = h0
+V2_train = np.zeros((M,T,d,1))
+
 
 ht = h_train[:,0]
 
 
 
 h_full = np.ones((M,T+1,d,1))*h
+
+
+
 
 for j in range(0,T):
      newu = u[j]*np.ones((M,ud,1))
@@ -309,84 +262,28 @@ for j in range(0,T):
      fp = 2*(Wp_bar_samples_vec @ x)
      #fp = 2*(Wp_bar @ x)
      _,vt,ht,yt =  gen.stoch_RNN_step_vectorized(M,d,1/inv_var,ht,
-                                             u[j], Wp_bar_samples_vec,
+                                             u[j], Wp_bar,
                                              Sigma_y, Wy, by,
                                              alpha, tau)
+     
      
      h_train[:,j+1,:,:]= ht
      V = gen.big_V(M,v_samples_vec[:,j], alpha, tau, fp, d)     
      V = V.reshape(V.shape[0], V.shape[1],1)
+     V2_train[:,j,:,:] = V
+
      h2_train[:,j+1,:,:] = 2*V-1
-
-std_h_train = np.std(h_train, axis=0)
+     
 h_train = np.sum(h_train, axis=0)/M
-
-
-h2_std = np.std(h2_train, axis=0)
 h2_train = np.sum(h2_train, axis=0)/M
-plt.plot(ran, h_train.reshape(T+1), label='Wp_samples_train')
-plt.fill_between(ran, h_train.reshape(T+1)+2*std_h_train.reshape(T+1),
-                 h_train.reshape(T+1)-2*std_h_train.reshape(T+1),
-                 facecolor='blue', alpha=0.2,
-                 label='2_sigma (Wp_samples_train)')
-
-
-
-h_train = np.zeros((M,T+1,d,1))
-h_train[:,0,:,0] = h0
-
-ht = h_train[:,0]
-
-for j in range(0,T):
-     _,vt,ht,yt =  gen.stoch_RNN_step_vectorized(M,d,1/inv_var,ht,
-                                             u[j], EWp_bar,
-                                             Sigma_y, Wy, by,
-                                             alpha, tau)
-     
-     h_train[:,j+1,:,:]= ht
-     
-
-
-h_train = np.sum(h_train, axis=0)/M
-plt.plot(ran, h_train.reshape(T+1), label='Ewp_sample_train')
-
-
-#std_h_avg = np.std(h_avg, axis=0)
-#h_avg = np.sum(h_avg, axis=0)/NN
-plt.plot(ran, h_avg.reshape(T+1), label='gen_avg')
-plt.fill_between(ran, h_avg.reshape(T+1)+2*std_h_avg.reshape(T+1),
-                 h_avg.reshape(T+1)-2*std_h_avg.reshape(T+1),
-                 facecolor='green', alpha=0.1, label='2_sigma gen_avg')
-
-plt.legend()
-plt.title('N={}, M={}, Train_Weights={}, d={},alpha={},tau={},\n Var_h={}, Var_y={}'.format(N,M,train_weights,d,alpha, tau, var, var_y ))
-
-
-plt.savefig(path+ '/1d{}_N{}.png'.format( d, N))
-plt.close()
-
-##
-
-plt.plot(ran,h.reshape(T+1), label = 'Observed')
-plt.plot(ran, h2_train.reshape(T+1), label='2*Vi(Wp_i)-1')
-plt.fill_between(ran, h2_train.reshape(T+1)+2*h2_std.reshape(T+1),
-                 h2_train.reshape(T+1)-2*h2_std.reshape(T+1),
-                 facecolor='orange', alpha=0.4, label='2_sigma (2*Vi(Wp_i)-1)')
-#plt.plot(ran, h_avg.reshape(T+1), label='gen_avg')
-plt.plot(ran, h_train.reshape(T+1), label='Wp_samples_train')
-plt.legend()
-plt.title('N={}, M={}, Train_Weights={}, d={},alpha={},tau={},\n Var_h={}, Var_y={}'.format(N,M,train_weights,d,alpha, tau, var, var_y ))
-
-
-plt.savefig(path+ '/2d{}_N{}.png'.format( d, N))
-plt.close()
+#V2_train = np.sum(V2_train, axis=0)/M
 
 
 
 #######
 
 def unnormalized_Wp_post(h,u, Wp, Up, bp, var, alpha, tau, T,d,
-                         w_mu_prior,theta_var,K=3):
+                         w_mu_prior,theta_var,v,K=3):
      
      fp = 2*(Wp*h[:-1,:,:]+Up*u + bp)
      scale=  np.sqrt(var)*np.ones(fp.shape)
@@ -394,23 +291,32 @@ def unnormalized_Wp_post(h,u, Wp, Up, bp, var, alpha, tau, T,d,
      V2 = np.ones(fp.shape)
      V3 = 1/(2*alpha)*fp+1/2
 
-     mu1 = 2*V1-1
-     mu2 = 2*V2-1
-     mu3 = 2*V3-1
+          
+     V = np.zeros(fp.shape)
+     v1 = v[:,:,0].reshape(T,d,1)*np.ones(fp.shape)
+     V += v1*V1
+     v2 = v[:,:,1].reshape(T,d,1)*np.ones(fp.shape)
+     V += v2*V2
+     v3 = v[:,:,2].reshape(T,d,1)*np.ones(fp.shape)
+     V += v3*V3
+     
 
+     
+     mu = 2*V-1
+     
      h_input = h[1:]*np.ones(fp.shape)
-     h1_pdf = norm.pdf(h_input, mu1, scale)
-     h2_pdf = norm.pdf(h_input, mu2, scale)
-     h3_pdf = norm.pdf(h_input, mu3, scale)
-
+     h_pdf = norm.pdf(h_input, mu, scale)
+     
      zeta1 = (-fp-alpha)/tau
      zeta2 = (fp-alpha)/tau
      
      pv1 = expit(zeta1)
      pv2 = np.exp(np.log(expit(zeta2))+np.log(expit(-zeta1)))
      pv3 = 1-(pv1+pv2)
+     
+     pv = v1*pv1 + v2*pv2 + v3*pv3
 
-     hv = h1_pdf*pv1 + h2_pdf*pv2 + h3_pdf*pv3
+     hv = h_pdf*pv 
      
      log_unnorm = np.sum(np.log(hv), axis=0)
 
@@ -445,8 +351,8 @@ unnorm = 0
 UM = 100
 for i in range(UM):
      Up = norm.rvs(w_mu_prior, np.sqrt(theta_var)).reshape(Up.shape)
-     unnorm += unnormalized_Wp_post(h,u,W,Up,B,var,alpha,tau,T,d, w_mu_prior, theta_var)
-     #print(i)
+     unnorm += unnormalized_Wp_post(h,u,W,Up,B,var,alpha,tau,T,d, w_mu_prior, theta_var, v_true)
+     print(i)
 
 unnorm = unnorm/UM
 
@@ -466,6 +372,8 @@ new_w, new_b = transform(low,high, size, WpT_bar[0,0],WpT_bar[0,2])
 plt.plot(new_w, new_b, 'go', label='obs_sample')
 new_w, new_b = transform(low,high, size, WpT_mu_prior[0,0],WpT_mu_prior[0,2])
 plt.plot(new_w, new_b, 'gx', label='true_mean')
+new_w, new_b = transform(low,high, size, 0,0)
+plt.plot(new_w, new_b, 'rx', label='0,0')
 
 
 plt.legend()
@@ -480,69 +388,14 @@ plt.close()
 
 
 
-######
 
 
 
+sys.exit()
 
-print(seed)
-
-
-
-
-post_v=0
-for i in range(0,M):
-     Wp_bar = Wp_bar_samples_vec[i]
-     Wp, Up, bp = update.extract_W_weights(Wp_bar, d, ud)
-     post_v += build.build_v_param(h,u,Wp,Up,bp,inv_var,T,d,alpha,tau_g)
-
-post_v = post_v/M
-
-labels = []
-for el in range(1,T+1):
-     labels.append(str(el))
-
-
-cat1 = np.sum(v_samples_vec[:,:,:,0], axis=0).reshape(T)/M
-cat2 = np.sum(v_samples_vec[:,:,:,1], axis=0).reshape(T)/M
-cat3 = np.sum(v_samples_vec[:,:,:,2], axis=0).reshape(T)/M
-
-print(np.sum(v_samples_vec, axis=0)/M)
-
-L = np.arange(1,T+1)
-width=.2
-
-fig, ax = plt.subplots()
-rects1 = ax.bar(L-width, cat1, width,  label='cat1')
-rects2 = ax.bar(L, cat2, width,  label='cat2')
-rects3 = ax.bar(L+width, cat3, width,  label='cat3')
-
-
-ax.set_xticks(L)
-ax.set_xticklabels(labels)
-
-plt.xlabel('T')
-
-
-cat1 = post_v[:,:,0].reshape(T)
-cat2 = post_v[:,:,1].reshape(T)
-cat3 = post_v[:,:,2].reshape(T)
-
-rects4 = ax.bar(L-width, cat1, width, fill=False)
-rects5 = ax.bar(L, cat2, width,  fill=False)
-rects6 = ax.bar(L+width, cat3, width, fill=False, label='True_Post')
-
-plt.title('Gibbs Post_v vs True Post_v:\n Train_Weights={}, N={}, var_h={}'.format(train_weights,N,var))
-ax.legend()
-plt.savefig(path+ '/d{}_N{}_v.png'.format( d, N))
-#plt.show()
-plt.close()
-
-
-
-
-
-
+plt.plot(ran, h_train.reshape(T+1), label='sample_train')
+plt.plot(ran, h2_train.reshape(T+1), label='2*Vi(Wp_i)-1')
+#plt.plot(ran[1:], V2_train.reshape(T), label='Vi')
 
 
 ####
@@ -639,9 +492,15 @@ test_y = (np.sum(test_y_vec, axis = 0))/M
 plt.plot(ran, test_y, label='sample_test')
 '''
 
+plt.legend()
+plt.title('N={}, M={}, Train_Weights={}, d={},alpha={},tau={},\n Var_h={}, Var_y={}'.format(N,M,train_weights,d,alpha, tau, var, var_y ))
+
+
+plt.savefig(path+ '/d{}_N{}.png'.format( d, N))
+
+
+plt.show()
 
 
 
 
-
-B

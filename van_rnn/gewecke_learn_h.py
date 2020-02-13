@@ -21,12 +21,12 @@ print('random_seed:',seed)
 
 
 
-train_weights = False
+train_weights = True
 #Loop parameters
 N=100000
-MM=100
+MM=1
 log_check = 1
-N_burn = int(.5*N)
+N_burn = int(.7*N)
 M = 100000#N-N_burn-1  #number of test samples should be less than N-N_burn
 T_check = 3 
 
@@ -85,16 +85,17 @@ WyT, _, byT = update.extract_W_weights(WyT_bar, d, 0)
 L=-.9
 U= .9
 
-#Wp_bar,Wp,Up,bp,Wp_mu_prior  = update.init_weights(L,U, Sigma_theta,
-#                                                        d, ud)
+Wp_bar,Wp,Up,bp,Wp_mu_prior  = update.init_weights(L,U, Sigma_theta,
+                                                        d, ud)
 Wy_bar,Wy,_,by,Wy_mu_prior  = update.init_weights(L,U, Sigma_y_theta,
                                                       d, 0)
+'''
 Wp_bar = WpT_bar
 Wp = WpT
 Up = UpT
 bp = bpT
 Wp_mu_prior = WpT_mu_prior
-
+'''
 
 #Generate data
 #v = np.zeros((MM,T,d,3))
@@ -104,7 +105,7 @@ y = np.zeros((MM,T,yd,1))
 
 ht = h[:,0]
 for j in range(0,T):
-     vt,ht,yt =  gen.stoch_RNN_step_vectorized(MM,d,1/inv_var,ht,
+     _,vt,ht,yt =  gen.stoch_RNN_step_vectorized(MM,d,1/inv_var,ht,
                                              u[j], WpT_bar,
                                              Sigma_y, WyT, byT,
                                              alpha, tau)
@@ -177,7 +178,7 @@ v_train = np.zeros((M,T,d,3))
 
 
 for j in range(0,T):
-     vt,ht,yt =  gen.stoch_RNN_step_vectorized(M,d,1/inv_var,ht,
+     _,vt,ht,yt =  gen.stoch_RNN_step_vectorized(M,d,1/inv_var,ht,
                                              u[j], Wp_bar,
                                              Sigma_y, Wy, by,
                                              alpha, tau)

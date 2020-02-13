@@ -79,6 +79,20 @@ def log_joint_no_weights(T, d, yd, u, y, h, inv_var, v,
     sum_log_like += np.sum(y_log_pdf(h,y,Wy, by, Sigma_y_inv,T, yd))
     return sum_log_like
 
+
+def van_log_joint_no_weights(T, d, u, h, inv_var, v,
+                         Wp, Up, bp,  alpha, tau):
+    #for vanilla RNN no outptus
+    log_like = 0
+    
+    fp = 2*(Wp @ h[:-1,:,:] + Up @ u + bp)
+
+    log_like += h_prior_logpdf(h,v,fp,inv_var,T,d, alpha)    
+    log_like += v_prior_logpmf(h,v,fp,T,d, alpha, tau)
+    #sum_log_like = np.sum(log_like)
+    
+    return log_like
+
 def log_joint_weights(T, d, yd, u, y, h, inv_var, v,
                       Wp, Up, bp, Wy, by, Sigma_y_inv, alpha, tau,
                       Wp_bar, Wy_bar, Sigma_theta, Sigma_y_theta,

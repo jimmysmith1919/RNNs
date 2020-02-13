@@ -223,9 +223,10 @@ def Wbar_y_update(x,xxT,y,Sigma_y_inv, Sigma_y_theta_inv, mu_prior,T,d,yd):
     return W_bar, W, b, W_mu, W_covar
 
 
-def init_weights(L,U, Sigma_theta, d, ud):
+def init_weights(L,U, Sigma_theta, d, ud, W_mu_prior=None):
     r = len(Sigma_theta[:,0])
-    W_mu_prior = np.random.uniform(L,U,size = (r,d+ud+1))
+    if W_mu_prior is None:
+        W_mu_prior = np.random.uniform(L,U,size = (r,d+ud+1))
     W_bar = np.random.normal(W_mu_prior, np.sqrt(Sigma_theta))
     W,U,b = extract_W_weights(W_bar, d, ud)
     return W_bar, W, U, b, W_mu_prior

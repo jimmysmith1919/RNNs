@@ -95,12 +95,7 @@ def stoch_RNN_step_vectorized(M,d,Sigma,h_0, u, Wp_bar,
     
     x = np.concatenate((h_0, newu, ones), axis=1)
     
-    
-    
     fp = 2*(Wp_bar @ x)
-    
-    
-
     
     zeta1 = (-fp-alpha)/tau
     zeta2 = (fp-alpha)/tau
@@ -115,16 +110,6 @@ def stoch_RNN_step_vectorized(M,d,Sigma,h_0, u, Wp_bar,
     v = update.vectorized_vector_cat(pv, np.arange(3), M)
     v = np.eye(3)[v]    
 
-    '''
-    V1 = np.zeros((M,d,1))
-    V2 = np.ones((M,d,1))
-    V3 = 1/(2*alpha)*fp+1/2
-    
-    V = np.zeros((M,d))
-    V += v[:,:,0]*V1[:,:,0]
-    V += v[:,:,1]*V2[:,:,0]
-    V += v[:,:,2]*V3[:,:,0]
-    '''
     V = big_V(M, v, alpha, tau, fp, d)
     
     Eh = (2*V-1)
